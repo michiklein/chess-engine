@@ -1,0 +1,48 @@
+# Build directories
+build/
+cmake-build-*/
+.cmake/
+
+# Compiled binaries
+*.exe
+*.out
+*.app
+chess_engine
+
+# Object files
+*.o
+*.obj
+
+# Libraries
+*.lib
+*.a
+*.la
+*.lo
+
+# Shared objects (inc. Windows DLLs)
+*.dll
+*.so
+*.so.*
+*.dylib
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+/tmp/
+*.tmp
+*.tempexamples/demo
