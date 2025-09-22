@@ -15,6 +15,9 @@ SearchResult SearchEngine::search(const Board& board, int depth) {
         return result;
     }
     
+    // Order moves for better search efficiency
+    orderMoves(board, moves);
+    
     int bestScore = std::numeric_limits<int>::min();
     Move bestMove = moves[0];
     
@@ -53,6 +56,9 @@ int SearchEngine::alphaBeta(Board& board, int depth, int alpha, int beta, bool m
     if (moves.empty()) {
         return board.isInCheck(board.getSideToMove()) ? -MATE_SCORE : DRAW_SCORE;
     }
+    
+    // Order moves for better search efficiency
+    orderMoves(board, moves);
     
     if (maximizing) {
         int maxEval = std::numeric_limits<int>::min();
@@ -118,36 +124,126 @@ int SearchEngine::getPieceValue(PieceType type) {
 }
 
 int SearchEngine::getPositionalValue(PieceType type, Square square, Color color) {
-    // Simplified positional evaluation
-    // In a real engine, this would use piece-square tables
-    
     int file = fileOf(square);
     int rank = rankOf(square);
     
-    // Adjust rank for black pieces
+    // Adjust rank for black pieces (flip the board)
     if (color == Color::BLACK) {
         rank = 7 - rank;
     }
     
+    // Distance from center (center is files 3,4 and ranks 3,4)
+    int centerDistance = std::max(abs(file - 3), abs(file - 4)) + std::max(abs(rank - 3), abs(rank - 4));
+    
     switch (type) {
-        case PieceType::PAWN:
-            // Encourage pawn advancement
-            return rank * 10;
+        case PieceType::PAWN: {
+            // Pawn structure bonuses
+            int pawnValue = 0;
             
-        case PieceType::KNIGHT:
-            // Knights are better in the center
-            return std::max(0, 4 - std::max(abs(file - 3.5), abs(rank - 3.5))) * 5;
+            // Center pawns are more valuable
+            if (file >= 3 && file <= 4) pawnValue += 10;
             
-        case PieceType::BISHOP:
-            // Bishops are better in the center
-            return std::max(0, 4 - std::max(abs(file - 3.5), abs(rank - 3.5))) * 3;
+            // Pawn advancement (but not too far)
+            if (rank >= 2 && rank <= 5) pawnValue += rank * 5;
+            else if (rank > 5) pawnValue += 20; // Advanced pawns
             
-        case PieceType::KING:
-            // In opening/middlegame, king should stay safe
-            if (rank == 0) return 10; // Bonus for staying on back rank
-            return -abs(rank) * 10;   // Penalty for king advancement
+            // Avoid moving pawns too early in opening
+            if (rank == 1) pawnValue -= 5; // Slight penalty for moving from starting position too early
+            
+            return pawnValue;
+        }
+            
+        case PieceType::KNIGHT: {
+            // Knights are excellent in the center
+            int knightValue = 0;
+            if (centerDistance <= 1) knightValue += 20; // Center
+            else if (centerDistance == 2) knightValue += 10; // Near center
+            else if (centerDistance >= 4) knightValue -= 10; // Edge
+            
+            // Avoid corners
+            if ((file == 0 || file == 7) && (rank == 0 || rank == 7)) knightValue -= 15;
+            
+            return knightValue;
+        }
+            
+        case PieceType::BISHOP: {
+            // Bishops like long diagonals and center
+            int bishopValue = 0;
+            if (centerDistance <= 1) bishopValue += 15;
+            else if (centerDistance == 2) bishopValue += 8;
+            
+            // Bishops on long diagonals are good
+            if (file == rank || file == 7 - rank) bishopValue += 5;
+            
+            return bishopValue;
+        }
+            
+        case PieceType::ROOK: {
+            // Rooks like open files and ranks
+            int rookValue = 0;
+            
+            // Rooks are better on open files (simplified - assume file is open)
+            if (file >= 2 && file <= 5) rookValue += 5;
+            
+            // Rooks on 7th rank are powerful
+            if (rank == 6) rookValue += 15;
+            
+            return rookValue;
+        }
+            
+        case PieceType::QUEEN: {
+            // Queen likes center but not too early
+            int queenValue = 0;
+            if (centerDistance <= 2) queenValue += 5;
+            
+            // Don't bring queen out too early
+            if (rank <= 1) queenValue -= 10;
+            
+            return queenValue;
+        }
+            
+        case PieceType::KING: {
+            // King safety - stay back in opening/middlegame
+            int kingValue = 0;
+            if (rank == 0) kingValue += 20; // Back rank is safe
+            else if (rank == 1) kingValue += 10;
+            else if (rank >= 3) kingValue -= 15; // Too far forward
+            
+            // King likes corners in opening
+            if (file <= 1 || file >= 6) kingValue += 5;
+            
+            return kingValue;
+        }
             
         default:
             return 0;
     }
+}
+
+void SearchEngine::orderMoves(const Board& board, std::vector<Move>& moves) {
+    // Simple move ordering: captures first, then other moves
+    std::sort(moves.begin(), moves.end(), [&](const Move& a, const Move& b) {
+        // Captures first
+        bool aCapture = a.isCapture;
+        bool bCapture = b.isCapture;
+        
+        if (aCapture && !bCapture) return true;
+        if (!aCapture && bCapture) return false;
+        
+        // If both captures or both non-captures, order by piece value
+        if (aCapture && bCapture) {
+            // Higher value captures first
+            int aValue = getPieceValue(board.pieceAt(a.to).type);
+            int bValue = getPieceValue(board.pieceAt(b.to).type);
+            return aValue > bValue;
+        }
+        
+        // For non-captures, prefer center moves
+        int aCenterDist = std::max(abs(fileOf(a.to) - 3), abs(fileOf(a.to) - 4)) + 
+                         std::max(abs(rankOf(a.to) - 3), abs(rankOf(a.to) - 4));
+        int bCenterDist = std::max(abs(fileOf(b.to) - 3), abs(fileOf(b.to) - 4)) + 
+                         std::max(abs(rankOf(b.to) - 3), abs(rankOf(b.to) - 4));
+        
+        return aCenterDist < bCenterDist; // Closer to center first
+    });
 }

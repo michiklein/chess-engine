@@ -4,6 +4,7 @@
 #include "types.h"
 #include "board.h"
 #include <limits>
+#include <vector>
 
 struct SearchResult {
     Move bestMove;
@@ -40,6 +41,7 @@ private:
     // Helper functions
     int getPieceValue(PieceType type);
     int getPositionalValue(PieceType type, Square square, Color color);
+    void orderMoves(const Board& board, std::vector<Move>& moves);
 };
 
 // Constants for evaluation
