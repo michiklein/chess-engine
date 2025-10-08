@@ -17,7 +17,7 @@ public:
     static bool isLegalMove(const Board& board, const Move& move);
 
 private:
-    // Generate moves for specific piece types
+    // Generate moves for specific piece types using bitboards
     static void generatePawnMoves(const Board& board, Square sq, std::vector<Move>& moves);
     static void generateKnightMoves(const Board& board, Square sq, std::vector<Move>& moves);
     static void generateBishopMoves(const Board& board, Square sq, std::vector<Move>& moves);
@@ -29,6 +29,14 @@ private:
     static void generateCastlingMoves(const Board& board, std::vector<Move>& moves);
     static bool isSquareOnBoard(int file, int rank);
     static bool canMoveTo(const Board& board, Square from, Square to, Color movingColor);
+    
+    // Bitboard attack generation
+    static Bitboard getPawnAttacks(Square sq, Color color);
+    static Bitboard getKnightAttacks(Square sq);
+    static Bitboard getBishopAttacks(Square sq, Bitboard occupied);
+    static Bitboard getRookAttacks(Square sq, Bitboard occupied);
+    static Bitboard getQueenAttacks(Square sq, Bitboard occupied);
+    static Bitboard getKingAttacks(Square sq);
 };
 
 #endif // MOVEGEN_H

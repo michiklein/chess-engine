@@ -8,13 +8,33 @@
 
 class Board {
 private:
-    std::array<Piece, 64> squares;
+    // Bitboards for each piece type and color
+    std::array<Bitboard, 12> pieceBitboards; // [WHITE_PAWN, WHITE_KNIGHT, WHITE_BISHOP, WHITE_ROOK, WHITE_QUEEN, WHITE_KING, BLACK_PAWN, ...]
+    
+    // Combined bitboards for faster operations
+    Bitboard whitePieces;
+    Bitboard blackPieces;
+    Bitboard allPieces;
+    
+    // Game state
     Color sideToMove;
     bool canCastleKingSide[2];   // [WHITE][BLACK]
     bool canCastleQueenSide[2];  // [WHITE][BLACK]
     Square enPassantSquare;
     int halfMoveClock;
     int fullMoveNumber;
+    
+    // Game state history for unmake
+    struct GameState {
+        Piece capturedPiece;
+        bool castlingRights[4]; // [WHITE_KING][WHITE_QUEEN][BLACK_KING][BLACK_QUEEN]
+        Square enPassantSquare;
+        int halfMoveClock;
+        Bitboard whitePieces;
+        Bitboard blackPieces;
+        Bitboard allPieces;
+    };
+    std::vector<GameState> gameHistory;
 
 public:
     Board();
@@ -23,9 +43,9 @@ public:
     void setupStartingPosition();
     
     // Board access
-    const Piece& pieceAt(Square sq) const { return squares[sq]; }
-    void setPiece(Square sq, const Piece& piece) { squares[sq] = piece; }
-    void clearSquare(Square sq) { squares[sq] = Piece(); }
+    Piece pieceAt(Square sq) const;
+    void setPiece(Square sq, const Piece& piece);
+    void clearSquare(Square sq);
     
     // Game state
     Color getSideToMove() const { return sideToMove; }
@@ -50,20 +70,18 @@ public:
     void makeMove(const Move& move);
     void unmakeMove(const Move& move);
     
-    // Game state history for unmake
-    struct GameState {
-        Piece capturedPiece;
-        bool castlingRights[4]; // [WHITE_KING][WHITE_QUEEN][BLACK_KING][BLACK_QUEEN]
-        Square enPassantSquare;
-        int halfMoveClock;
-    };
-    std::vector<GameState> gameHistory;
-    
     // Board evaluation helpers
     bool isSquareAttacked(Square sq, Color attacker) const;
     bool isInCheck(Color color) const;
     bool isCheckmate() const;
     bool isStalemate() const;
+    Square findKing(Color color) const;
+    
+    // Bitboard access
+    Bitboard getPieceBitboard(PieceType type, Color color) const;
+    Bitboard getWhitePieces() const { return whitePieces; }
+    Bitboard getBlackPieces() const { return blackPieces; }
+    Bitboard getAllPieces() const { return allPieces; }
     
     // FEN notation
     std::string toFEN() const;
@@ -73,9 +91,19 @@ public:
     std::string toString() const;
     
 private:
-    Square findKing(Color color) const;
+    // Helper functions
+    int getPieceIndex(PieceType type, Color color) const;
+    void updateCombinedBitboards();
     void updateCastlingRights(const Move& move);
     void updateEnPassant(const Move& move);
+    
+    // Bitboard attack generation
+    Bitboard getPawnAttacks(Square sq, Color color) const;
+    Bitboard getKnightAttacks(Square sq) const;
+    Bitboard getBishopAttacks(Square sq, Bitboard occupied) const;
+    Bitboard getRookAttacks(Square sq, Bitboard occupied) const;
+    Bitboard getQueenAttacks(Square sq, Bitboard occupied) const;
+    Bitboard getKingAttacks(Square sq) const;
 };
 
 #endif // BOARD_H

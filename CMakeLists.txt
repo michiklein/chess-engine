@@ -12,12 +12,33 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 # Include directories
 include_directories(src)
 
-# Source files
-file(GLOB_RECURSE SOURCES "src/*.cpp")
+# Source files for UCI engine
+set(UCI_SOURCES
+    src/main.cpp
+    src/board.cpp
+    src/movegen.cpp
+    src/search.cpp
+    src/uci.cpp
+    src/opening_book.cpp
+)
+
+# Source files for terminal game
+set(TERMINAL_SOURCES
+    src/terminal_game.cpp
+    src/board.cpp
+    src/movegen.cpp
+    src/search.cpp
+    src/opening_book.cpp
+)
+
 file(GLOB_RECURSE HEADERS "src/*.h")
 
-# Create the executable
-add_executable(chess_engine ${SOURCES} ${HEADERS})
+# Create the UCI engine executable
+add_executable(chess_engine ${UCI_SOURCES} ${HEADERS})
+
+# Create terminal game executable
+add_executable(terminal_game ${TERMINAL_SOURCES} ${HEADERS})
+target_include_directories(terminal_game PRIVATE src)
 
 
 # Optional: Enable testing

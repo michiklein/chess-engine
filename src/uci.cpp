@@ -6,6 +6,13 @@
 
 UCIEngine::UCIEngine() : isRunning(false) {
     board.setupStartingPosition();
+    
+    // Load opening book
+    if (search.loadOpeningBook("src/eco.pgn")) {
+        std::cout << "Opening book loaded successfully" << std::endl;
+    } else {
+        std::cout << "Warning: Could not load opening book" << std::endl;
+    }
 }
 
 void UCIEngine::run() {
