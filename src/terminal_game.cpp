@@ -51,7 +51,7 @@ public:
         }
         
         std::cout << "\nGame started! Enter moves in algebraic notation (e.g., e4, Nf3, O-O)." << std::endl;
-        std::cout << "Type 'quit' to exit the game." << std::endl;
+        std::cout << "Type 'print' to display the board, or 'quit' to exit the game." << std::endl;
         std::cout << "=====================================" << std::endl;
         
         // Main game loop
@@ -118,6 +118,11 @@ private:
             
             if (moveStr == "quit") {
                 return false;
+            }
+            
+            if (moveStr == "print") {
+                printBoard();
+                continue;
             }
             
             Move move = parseMove(moveStr);
@@ -503,6 +508,48 @@ private:
         }
         
         return result;
+    }
+    
+    void printBoard() {
+        std::cout << "\n";
+        std::cout << "  +---+---+---+---+---+---+---+---+\n";
+        
+        // Print board from rank 8 down to rank 1 (top to bottom)
+        for (int rank = 7; rank >= 0; rank--) {
+            std::cout << (rank + 1) << " |";
+            
+            for (int file = 0; file < 8; file++) {
+                Square square = makeSquare(file, rank);
+                Piece piece = board.pieceAt(square);
+                
+                std::string pieceChar = " ";
+                if (!piece.isEmpty()) {
+                    switch (piece.type) {
+                        case PieceType::PAWN:   pieceChar = (piece.color == Color::WHITE) ? "♙" : "♟"; break;
+                        case PieceType::KNIGHT: pieceChar = (piece.color == Color::WHITE) ? "♘" : "♞"; break;
+                        case PieceType::BISHOP: pieceChar = (piece.color == Color::WHITE) ? "♗" : "♝"; break;
+                        case PieceType::ROOK:   pieceChar = (piece.color == Color::WHITE) ? "♖" : "♜"; break;
+                        case PieceType::QUEEN:  pieceChar = (piece.color == Color::WHITE) ? "♕" : "♛"; break;
+                        case PieceType::KING:   pieceChar = (piece.color == Color::WHITE) ? "♔" : "♚"; break;
+                        default: pieceChar = " "; break;
+                    }
+                }
+                
+                std::cout << " " << pieceChar << " |";
+            }
+            std::cout << "\n";
+            std::cout << "  +---+---+---+---+---+---+---+---+\n";
+        }
+        
+        std::cout << "    a   b   c   d   e   f   g   h\n";
+        std::cout << "\n";
+        
+        // Show game state info
+        std::cout << "Side to move: " << (board.getSideToMove() == Color::WHITE ? "White" : "Black") << "\n";
+        if (board.isInCheck(board.getSideToMove())) {
+            std::cout << "CHECK!\n";
+        }
+        std::cout << "\n";
     }
 };
 
