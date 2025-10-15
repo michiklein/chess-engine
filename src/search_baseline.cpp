@@ -6,7 +6,7 @@
 #include <iomanip>
 #include <random>
 
-SearchEngine::SearchEngine() : maxDepth(8), timeLimit(5000), nodesSearched(0), currentDepth(0), useOpeningBook(false), quietMode(false) {
+SearchEngine::SearchEngine() : maxDepth(8), timeLimit(5000), nodesSearched(0), currentDepth(0), useOpeningBook(false) {
     // Initialize killer moves table
     for (int i = 0; i < 32; i++) {
         for (int j = 0; j < MAX_KILLER_MOVES; j++) {
@@ -43,14 +43,10 @@ SearchResult SearchEngine::search(const Board& board, int depth) {
             result.score = 0; // Neutral score for book moves
             result.depth = depth;
             result.nodesSearched = 0;
-            if (!quietMode) {
-                std::cout << "Playing from opening book: " << openingBook.getEcoCode(board) << std::endl;
-            }
+            std::cout << "Playing from opening book: " << openingBook.getEcoCode(board) << std::endl;
             return result;
         } else {
-            if (!quietMode) {
-                std::cout << "No opening book move found, playing random move" << std::endl;
-            }
+            std::cout << "No opening book move found, playing random move" << std::endl;
         }
     }
     

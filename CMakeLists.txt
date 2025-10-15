@@ -31,6 +31,15 @@ set(TERMINAL_SOURCES
     src/opening_book.cpp
 )
 
+# Source files for tournament
+set(TOURNAMENT_SOURCES
+    src/engine_tournament.cpp
+    src/board.cpp
+    src/movegen.cpp
+    src/search.cpp
+    src/opening_book.cpp
+)
+
 file(GLOB_RECURSE HEADERS "src/*.h")
 
 # Create the UCI engine executable
@@ -39,6 +48,10 @@ add_executable(chess_engine ${UCI_SOURCES} ${HEADERS})
 # Create terminal game executable
 add_executable(terminal_game ${TERMINAL_SOURCES} ${HEADERS})
 target_include_directories(terminal_game PRIVATE src)
+
+# Create tournament executable
+add_executable(engine_tournament ${TOURNAMENT_SOURCES} ${HEADERS})
+target_include_directories(engine_tournament PRIVATE src)
 
 
 # Optional: Enable testing

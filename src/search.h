@@ -29,6 +29,7 @@ public:
     // Set search parameters
     void setMaxDepth(int depth) { maxDepth = depth; }
     void setTimeLimit(int milliseconds) { timeLimit = milliseconds; }
+    void setQuietMode(bool quiet) { quietMode = quiet; }
     
     // Opening book
     bool loadOpeningBook(const std::string& filename);
@@ -39,6 +40,7 @@ private:
     int timeLimit;
     int nodesSearched;
     int currentDepth;
+    bool quietMode;
     
     // Opening book
     OpeningBook openingBook;

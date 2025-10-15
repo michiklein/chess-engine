@@ -23,14 +23,19 @@ make chess_engine
 echo "🎮 Building terminal game..."
 make terminal_game
 
+echo "🏆 Building tournament..."
+make engine_tournament
+
 echo ""
 echo "✅ Build complete!"
 echo "================================"
 echo "📁 Executables created:"
 echo "   • UCI Engine: ./build/chess_engine"
 echo "   • Terminal Game: ./build/terminal_game"
+echo "   • Tournament: ./build/engine_tournament"
 echo ""
 echo "🚀 To run:"
 echo "   • UCI Engine: ./build/chess_engine"
 echo "   • Terminal Game: ./build/terminal_game"
+echo "   • Tournament: ./build/engine_tournament"
 echo "================================"

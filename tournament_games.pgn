@@ -1,0 +1,175 @@
+[Event "Engine Tournament"]
+[Site "Local"]
+[Date "2025.10.15"]
+[Round "1"]
+[White "Engine1"]
+[Black "Engine2"]
+e4 1. g6 d4 2. Nf6 e5 3. Nh5 g4 4. Ng7 Be3 5. Nh5 Ne2 6. Nf4 b3 7. Nd5 Bg5 8. b5 h3 9. Bb7 Nf4 10. h5 Rg1 11. Rh6 Bh4 12. Ne3 fxe3 13. Bg7 Bg3 14. Rh8 b4 15. Kf8 Rh1 16. Bf3 Bc4 17. Be4 Na3 18. c6 gxh5 19. Rxh5 Qd2 20. Qc8 Qc1 21. Bg2 Nxg2 22. Qd8 h4 23. Bxe5 Bd3 24. Rxh4 Bf5 25. Rf4 Rh4 26. a6 Rh2 27. Kg7 Rh4 28. Bf6 Bg4 29. Qf8 Rh1 30. Rxd4 Bf5 31. d5 Rb1 32. Qe8 Rh5 33. Kf8 Nh4 34. Be5 Qb2 35. Qc8 Nc4 36. c5 Qc1 37. Ke8 Qa3 38. Rd3 Ke2 39. Rxa3 Bxc8 40. a5 Rb3 41. bxc4 Bf2 42. Bh8 bxa5 43. Bb2 Kd3 44. Ra7 Rg5 45. Bd4 Nf5 46. cxb3 Kxd4 47. Nd7 Be1 48. Rxa2 Bf2 49. Rxc2 Ng7 50. Kf8 Rxg6 51. Ra2 Rg5 52. Ra6 Ke4 53. Nb6 Kd3 54. Nxc8 Ne8 55. Rf6 Rg4 56. Rc2 Rf4 57. Rd6 Be1 58. Na7 Rb4 59. e5 Rg4 60. Ra6 Ke4 61. Ke7 Kxd5 62. Rd6 Kxe5 63. Rh2 Ng7 64. Nb5 Bd2 65. Rh8 Ra4 66. Rd3 Kf5 67. Rh5 Kf4 68. Kd7 Bb4 69. Ke7 Kf3 70. Rh4 Nf5 71. Kd8 Ra2 72. Rh8 Be1 73. Rc3 Nh6 74. c4 Rc2 75. Rxe3 Kg2 76. Nd6 Nxf7 77. Ke8 Nxh8 78. Rxe1 Kf3 79. Ne4 Rd2 80. Nd6 Kf2 81. Kd7 Rb2 82. Rf1 Kg2 83. Rd1 Ng6 84. Rb1 Nf4 85. Ne4 Kh3 86. Nd2 Ng6 87. Kc6 Kg2 88. Kb7 Kh2 89. Kb6 Nh4 90. Kb5 Rxb1 91. Kb6 Kg3 92. b2 Ng2 93. c3 Rh1 94. Kc7 Nf4 95. Nf3 Ng2 96. b1=R Rh4 97. Rb6 Rh6 98. Nh2 Kxh2 99. Re6 Kh3 100. Re1 1/2-1/2
+
+[Event "Engine Tournament"]
+[Site "Local"]
+[Date "2025.10.15"]
+[Round "2"]
+[White "Engine2"]
+[Black "Engine1"]
+e4 1. e6 d4 2. d5 Nc3 3. Nf6 Bg5 4. Be7 e5 5. Ng8 Be3 6. b6 Qh5 7. Bb7 g4 8. Bb4 Bb5 9. Nc6 f3 10. g6 g5 11. Qe7 a4 12. Rd8 a5 13. Bd6 b3 14. Nf6 O-O-O 15. bxa5 Bxc6 16. Rd7 Qg4 17. Rg8 Qh5 18. h6 exd6 19. Kd8 gxf6 20. Bc8 Ba4 21. gxh5 Kb2 22. Rg6 Bc1 23. Bb7 Nxd5 24. Rxf6 Nb6 25. Ba6 Bb5 26. Rxd6 Na8 27. Rf5 Bxa6 28. Rxa6 Rf1 29. Rxf3 Rf2 30. Rxb3 Ka2 31. f5 Bf4 32. Qh4 Nxc7 33. Rf3 Ne2 34. Ke7 Bd6 35. Kf6 Bc5 36. Rb6 Na8 37. Kf7 Rxf3 38. Qf4 Bb4 39. Ra6 Rb1 40. Qe4 Rc3 41. Qe5 dxe5 42. f4 Rb3 43. axb4 Kb1 44. Kg8 Kb2 45. Kh8 Ng3 46. bxc3 Kc1 47. Ra5 Kd2 48. Ra3 Kd3 49. Kg7 Nf5 50. Kg8 Ng7 51. Kxg7 Ke3 52. Ra4 Rxc3 53. Kf8 Rc7 54. Re4 Kf3 55. a6 Kg2 56. h4 c3 57. Rd4 Rc4 58. a5 Rb4 59. Rd8 Rb5 60. h5 Nb6 61. Ke7 Nc4 62. f3 Rc5 63. fxg2 Rd5 64. Ke8 Nb2 65. g1=B Nd3 66. Bc5 Rxd8 67. Ke7 Rd6 68. Bb4 Nxb4 69. Kf7 Rd8 70. axb4 Rb8 71. Kf6 h3 72. Ke7 Rh8 73. bxc3 Re8 74. Kf6 Rb8 75. Kxe5 Rc8 76. Kf6 Rg8 77. c2 Rg6 78. Ke7 Rg7 79. Kf6 Rh7 80. c1=Q Rg7 81. Qc5 Ra7 82. Kg5 Ra3 83. Qc1 Rg3 84. hxg3 h4 85. Qb1 hxg5 86. Qb2 g6 87. Qh8 g7 88. h4 g8=N 89. Qh7 Ne7 90. Qg8 Nxg8 91. h3 Nh6 92. h2 Nf5 93. h1=N Ne7 94. Nf2 Nf5 95. Nh3 Nd6 96. Ng5 Nf5 97. Nf7 Ne7 98. Ne5 Ng6 99. Nc6 Nh4 100. Na5 1/2-1/2
+
+[Event "Engine Tournament"]
+[Site "Local"]
+[Date "2025.10.15"]
+[Round "3"]
+[White "Engine1"]
+[Black "Engine2"]
+e4 1. e5 Nf3 2. Nc6 Nc3 3. Nf6 Bc4 4. h5 O-O 5. Nb8 Ne1 6. b6 a3 7. Ng4 Bb3 8. c5 a4 9. Na6 Nd5 10. Nc7 Ra2 11. Nxd5 Nd3 12. Ne7 h4 13. Rb8 Be6 14. Qc7 Qe2 15. Nd5 Qxg4 16. Qd6 Qe2 17. Ra8 Ra3 18. Ke7 a5 19. Qb8 Qe3 20. b5 Qh3 21. Qb6 Kh2 22. f6 a6 23. dxe6 Ne1 24. Ke8 Qd3 25. Bb7 Qe3 26. Ke7 exd5 27. Qc6 c3 28. Rh6 Qxc5 29. Qxc5 Nf3 30. exd5 b4 31. Bc8 Ra5 32. Rh8 bxc5 33. b4 Rb5 34. bxc3 Ba3 35. Kd7 dxc3 36. Rb8 Ng5 37. d4 cxd4 38. Bxc5 dxc5 39. Rf8 f3 40. Kd6 Rxb8 41. Kd7 Rb7 42. Kd6 Re7 43. Kc6 Rxa7 44. Bf5 Nh7 45. Bc8 Kg1 46. Rh8 Rf7 47. Bxa6 Rc7 48. Kd6 Bb2 49. Rg8 g3 50. Rh8 Kh1 51. Rc8 Nxf6 52. Rg8 Kh2 53. Bb5 Ra1 54. Re8 Nd5 55. g6 Rh1 56. Kxd5 Bc3 57. Rg8 Ba1 58. Bd7 Rd1 59. Kc4 Rf1 60. Ra8 Re1 61. e4 c6 62. Bc8 Re2 63. Ra6 Kh1 64. Ra4 Bf6 65. Ra1 Kh2 66. Bh3 f4 67. Ra3 Rg7 68. Re3 Ra2 69. Re2 Rxe2 70. e3 Rb7 71. Bg4 Rc2 72. Kd3 Ra7 73. Kxc2 Ra4 74. Kd2 Ra2 75. Kc1 Bg5 76. Kb1 Ra3 77. Bf3 g4 78. Bxc6 Ra2 79. Ba8 Kg3 80. Bg2 gxh5 81. Kc1 hxg6 82. Ba8 Kf2 83. Bd5 Kg1 84. Bc6 Kf2 85. Ba4 g7 86. Bc6 g8=R 87. Bg2 Bd8 88. Ba8 Rc2 89. Kd1 Rg2 90. Bxg2 Rb2 91. Bb7 Rd2 92. exd2 Be7 93. Bf3 f5 94. Bh1 Kg3 95. Be4 Bd8 96. Bc6 Bb6 97. Ba4 Bf2 98. Ke2 Be1 99. dxe1=Q Kh3 100. Qg3 1/2-1/2
+
+[Event "Engine Tournament"]
+[Site "Local"]
+[Date "2025.10.15"]
+[Round "4"]
+[White "Engine2"]
+[Black "Engine1"]
+e4 1. c5 Nf3 2. d6 d4 3. Nd7 Bb5 4. d5 Ba4 5. cxd4 Be3 6. Nf6 Bxd7 7. Kxd7 Ng5 8. a6 b4 9. e5 Ne6 10. Ra7 c3 11. fxe6 f3 12. b6 Qd3 13. Kc7 Na3 14. Qd7 Rg1 15. Kb8 Bc1 16. dxe4 Qe2 17. Bc5 Kd1 18. Rf8 Qd3 19. Qe8 Nc4 20. g5 Qf1 21. Qh5 Bd2 22. Ka8 Na5 23. d3 Nc4 24. exf3 Qf2 25. Bxb4 Rh1 26. Bd7 Rg1 27. g4 Qxb6 28. Be8 h4 29. Bc5 Bh6 30. fxg2 Nd6 31. d2 Ke1 32. Bb5 Nc8 33. dxe1=B Qd6 34. Rf7 Qxe5 35. Bg3 Nb6 36. Kb7 Qxf6 37. Rd7 Bf4 38. Bh2 Qe5 39. Kc6 Bg5 40. Bd3 Qg3 41. Rb7 Qb8 42. Bxg1 Nc8 43. Rd7 Bd2 44. Rf4 Nd6 45. Bg6 Rd1 46. Rf3 Bg5 47. Bf4 Be7 48. Bd4 Qh8 49. Bf5 cxd4 50. Bb1 Qa8 51. Rb7 Nc8 52. Qe5 Bd8 53. Qf5 Qb8 54. Rf2 a4 55. Rd2 Ne7 56. Kd7 Nd5 57. Qf7 Nc7 58. Be5 Bf6 59. Kc6 Rc1 60. Kd6 Re1 61. Rb2 Ne8 62. Kd5 Qb7 63. Qxb7 Re3 64. Bf5 a5 65. Qb5 Nc7 66. Bxc7 Ra3 67. g1=R Ra1 68. Qe8 Rb1 69. Qh8 Rxb2 70. Bb6 Rb1 71. Rxb1 Be5 72. Rb3 axb6 73. Qe8 Bg3 74. Qf8 Bc7 75. Rc3 Bd6 76. Rd3 Bb4 77. Bg6 Bxd2 78. Rxd4 Bg5 79. Be4 Bf4 80. Bb1 Bd2 81. Qd8 b7 82. h5 b8=Q 83. Rf4 Bc3 84. Bf5 Qa7 85. Qb6 Be5 86. Ra4 Bh8 87. Qb5 Qb7 88. Kc4 Qe4 89. Kb3 Qe5 90. Qd7 Qd4 91. Qxd4 Bg7 92. Qa7 Bf6 93. Qf7 Bg7 94. Rc4 Bf8 95. a5 Be7 96. Bh7 Bd6 97. e5 Bxe5 98. Ka3 Bh8 99. Rc6 Be5 100. Qf3 1/2-1/2
+
+[Event "Engine Tournament"]
+[Site "Local"]
+[Date "2025.10.15"]
+[Round "5"]
+[White "Engine1"]
+[Black "Engine2"]
+d4 1. Nf6 c4 2. c5 d5 3. e6 Nc3 4. b6 d6 5. Ke7 Qd2 6. h5 Nh3 7. a6 Qe3 8. Ng8 Qe5 9. Ra7 Qxc5 10. bxc5 Rg1 11. Qb6 dxe7 12. Bb7 Nb1 13. Ba8 Be3 14. Bd5 exf8=B 15. Bxg2 Nf4 16. Ba8 Rxg7 17. a5 Rxg8 18. Qb7 b4 19. Qc8 Bh3 20. Bb7 Nd3 21. f6 Bh6 22. Rxg8 Bg7 23. d5 a3 24. Ba8 Bf4 25. Re7 a4 26. Qd8 Bxe6 27. Rf8 e3 28. axb4 Bh8 29. Rg8 cxd5 30. b3 h3 31. Rg3 d6 32. Nd7 fxg3 33. Nb8 Ne5 34. Qg8 Bd5 35. Qg4 Nf7 36. Qf5 Bh1 37. Qxh3 Bg7 38. Qc8 Be5 39. Nd7 Bh6 40. Qb8 Nc3 41. b2 Kf1 42. Bxh1 Bf4 43. Ba8 Na2 44. Bb7 Nc1 45. Qd8 Ra2 46. Ba6 Nd3 47. Nb6 Kg1 48. Nc8 Nxd8 49. Re8 d7 50. c4 Kf2 51. Ne7 a5 52. b1=Q dxe8=B 53. Qa1 Bh6 54. Qc1 Bb8 55. Nd5 Bf4 56. Nc7 Bb5 57. f5 Ne5 58. c3 Bf8 59. Bb7 Ng6 60. Ne8 Nh4 61. Bc6 Bc5 62. Ba8 Rd2 63. cxd2 Bb6 64. Qh1 Ba7 65. Qh3 Bf1 66. Bf3 Bc4 67. Nc7 Bd3 68. Be4 Bb1 69. Bb7 Ng2 70. Qh2 e4 71. h4 Kf3 72. Na8 Ne6 73. Bc8 g4 74. Qg1 Bxd2 75. Qb6 g5 76. Qc7 Bc2 77. f4 Bf2 78. h3 Nxf4 79. Qxf4 Ke2 80. Qe5 Bd1 81. Qxg5 Kf1 82. Qe5 Nf4 83. Qb5 Ne2 84. Ba6 Kg1 85. Qb7 Kg2 86. Qd5 exd5 87. Bb7 Ng3 88. Nc7 Be1 89. Ba8 Bb3 90. Ne6 Nf1 91. Ng5 Bg3 92. hxg2 Bc7 93. Nh7 Ba4 94. gxf1=B Bb3 95. Nf6 Bf4 96. Bb7 Ba2 97. Ba6 Bg3 98. Be2 Bf2 99. Nh5 Be5 100. Bd3 1/2-1/2
+
+[Event "Engine Tournament"]
+[Site "Local"]
+[Date "2025.10.15"]
+[Round "6"]
+[White "Engine2"]
+[Black "Engine1"]
+e4 1. e5 Nf3 2. Nc6 Bc4 3. Bc5 b4 4. Bb6 b5 5. Na5 Ng1 6. Qf6 h4 7. Qxf2 Ra1 8. g5 Ra1 9. Qe3 Ne2 10. gxh4 Bb2 11. d5 Rg1 12. Qc3 dxc3 13. Nh6 g4 14. Bxg4 Rxg4 15. Nxc4 exd5 16. Nd2 Nc1 17. Ba5 a3 18. Nb3 a4 19. Rb8 cxb3 20. c6 Rg6 21. f6 Qf3 22. Nf7 Rg3 23. e4 Ba3 24. Rf8 Qf4 25. Ne5 Rg4 26. Nf3 Kf2 27. cxb5 Qe3 28. Rd8 Qxf3 29. b6 Ke2 30. Kf7 Bd6 31. Rb8 Qe3 32. a6 Bxb8 33. Bb4 Bh2 34. Ra8 Na2 35. a5 d6 36. Rc8 Qg3 37. f5 Bg1 38. h6 Ke1 39. hxg3 Kf1 40. bxa4 Kf2 41. Ba3 Rg5 42. Ra8 d7 43. Ra6 d8=R 44. f4 Rc5 45. Ra8 Rh5 46. Ra7 Rd5 47. g2 Kf1 48. gxf1=Q Re5 49. Rc7 Rf5 50. Ke8 Rf6 51. Rg7 Rh3 52. Qd3 Rh2 53. Qb5 Rf2 54. Kd8 Rc6 55. Bd6 bxa4 56. Rg4 Rc8 57. Kxc8 Rh2 58. Qb3 Rxh6 59. Qe6 Nc1 60. Be5 Bc5 61. Kd7 Bb4 62. Rg7 Na3 63. Rg4 Bc5 64. Bb8 Rh7 65. Qe7 Nb3 66. Rh4 Nc1 67. f3 Nc4 68. f2 Bd4 69. Kd8 Bg7 70. Qf6 Rxh4 71. Qf7 Rh2 72. Qg8 Nxb6 73. Qd5 Rh6 74. Qf5 Ra3 75. Qf6 Rh8 76. Qf8 Nc8 77. Ba7 Rh3 78. Qe8 Be5 79. Qf7 Ra2 80. Qf3 Rxf3 81. f1=B Rb2 82. Bc5 Rg3 83. Ba3 Rg7 84. Bd3 Nb6 85. Bb4 Rg2 86. Bxc3 Nxd3 87. Be1 Rb1 88. Bd2 Nc4 89. Bb4 Bh8 90. Bc3 Bxc3 91. Ke8 Rb6 92. Ke7 Na3 93. Kf8 Nb2 94. e3 Rh2 95. e2 Nc4 96. Ke7 Bf6 97. Kf8 Rb3 98. e1=R Rh4 99. Rf1 Rb8 100. Kf7 1/2-1/2
+
+[Event "Engine Tournament"]
+[Site "Local"]
+[Date "2025.10.15"]
+[Round "7"]
+[White "Engine1"]
+[Black "Engine2"]
+e4 1. e5 Nf3 2. Nc6 Bb5 3. a6 Ba4 4. Nf6 d3 5. d6 c4 6. Bh3 Be3 7. Be6 c5 8. Qe7 Nh4 9. Qd8 h3 10. Qd7 Na3 11. Ra7 Nf3 12. Na5 Bc6 13. Bxa2 Bd4 14. Nxe4 Nb1 15. b5 g3 16. Rg8 cxd6 17. Nxc6 b3 18. Qg4 Nd2 19. Qg6 Rf1 20. Qg5 Qc1 21. Rh8 Qb2 22. f6 Ke2 23. Nb4 h4 24. f5 g4 25. Ng3 Ke1 26. Kd8 Bc5 27. Qg6 f4 28. Qxd6 d4 29. Nc6 Kd1 30. Bxb3 Qxb3 31. Qxc5 Qg8 32. Nb8 Nb3 33. Qd5 Kc1 34. Ne4 Qxh8 35. Ke7 Nc3 36. g5 Kb2 37. b4 fxe5 38. Ng3 Nb5 39. Qa8 Ra3 40. Kf7 hxg5 41. Qb7 Kb1 42. h6 Nd2 43. Ra8 Kc1 44. a5 g6 45. Ke6 Nd6 46. Qg2 Rf2 47. Qc6 Nc4 48. Qb7 Kd1 49. Ke7 Qf6 50. Kxf6 Kc2 51. Ke7 Kd2 52. Kd8 Rf4 53. Qb5 Nb7 54. Kd7 gxf5 55. h5 Nxa5 56. Qa4 Kd3 57. Bd6 Nb7 58. Qc6 Nb6 59. Ke7 Ke3 60. Qc2 Nc4 61. h4 Ra6 62. Kf8 Kf3 63. Qd2 Ra3 64. c5 exd6 65. Qe3 Rxe3 66. Ra5 Nd8 67. cxd4 Nxa5 68. d3 Nc6 69. Nh5 Rc4 70. Na6 Re4 71. Kf7 Rf4 72. h3 Rd4 73. Kxg6 Re5 74. Kg7 Nb3 75. Nb8 Nd8 76. Nd7 Rd5 77. Nb6 Kf2 78. Na4 Re1 79. h2 Re5 80. Ng3 Re7 81. Kf6 Kg2 82. Nb6 Nc5 83. b3 Re2 84. Kg7 Re8 85. Ne2 Re6 86. d2 Nb7 87. Nc1 Kh3 88. Ne2 Re7 89. Kf6 Na5 90. dxe1=N Rd7 91. h1=B Rc7 92. Be4 Rc6 93. Na4 Nb7 94. b2 Rc5 95. Nf3 Nd8 96. Kg5 Rc4 97. b1=N Rxa4 98. Nd2 Nf7 99. Kf4 Rd4 100. Ng1 1/2-1/2
+
+[Event "Engine Tournament"]
+[Site "Local"]
+[Date "2025.10.15"]
+[Round "8"]
+[White "Engine2"]
+[Black "Engine1"]
+e4 1. e5 Nf3 2. Nc6 Bc4 3. Nf6 Ng5 4. d5 d3 5. a6 Nf3 6. Na5 Ke2 7. g6 Be3 8. Be7 Ne1 9. h6 exd5 10. Bh3 g4 11. Bc5 d4 12. Ba3 f3 13. g5 Nd2 14. Nxc4 Bf4 15. Bd6 Nxc4 16. Kf8 Ke3 17. e4 c3 18. Be7 Rg1 19. c5 Rc1 20. Rb8 Na5 21. Bg2 Bxg5 22. Ra8 Bf4 23. Bd6 Nc4 24. Rg8 h3 25. Ke8 a4 26. Rxg4 Ne5 27. Kf8 Qe2 28. Nh5 Rxg2 29. Rxg2 Ng4 30. Bb8 Nxg2 31. Nf6 Rc2 32. h5 d6 33. Nd7 Qd1 34. Nb6 Nh4 35. exf3 Qh1 36. Qe7 Kf2 37. hxg4 Ng6 38. Ke8 Rd2 39. Qe5 Be3 40. fxg6 Qg2 41. gxh3 dxc5 42. Nxa4 Re2 43. Qd5 Qxg6 44. Kf8 Bd4 45. Qe4 Qf7 46. Kxf7 Rd2 47. Qxd4 Kg2 48. Qh8 Kxf3 49. b6 Re2 50. Qf8 Re6 51. Qe7 c6 52. Qf6 Kg3 53. Ba7 Re4 54. Qf2 Kxf2 55. Rh8 Ke3 56. Rh7 c4 57. Bb8 Re8 58. a5 Re5 59. Ba7 Rg5 60. h2 Ke4 61. Ke8 d7 62. Nxb2 Rxa5 63. h1=Q Ke5 64. Qc1 dxe8=N 65. Re7 Kd6 66. Qb1 Ra1 67. Re4 Kd7 68. Qd3 Nd6 69. Qf1 c5 70. Qf2 Nc8 71. Qf7 Kd8 72. Bb8 Rc1 73. Rg4 c7 74. b5 Rd1 75. Qc4 Ne7 76. Qf7 Rd5 77. Qh7 Rg5 78. Nd3 Rd5 79. Rg8 Nxg8 80. Qh6 Nxh6 81. Ne1 Rd4 82. Nd3 Ke7 83. Nxc5 Rd2 84. Nd3 cxb8=N 85. Nf2 Rd8 86. Nd3 Kf8 87. Nc5 Ke7 88. Nb3 Rd6 89. Nc1 Kf8 90. Nd3 Rxd3 91. b4 Rd6 92. b3 Rg6 93. b2 Rg5 94. b1=B Na6 95. Be4 Nf7 96. Bc2 Rf5 97. Bd1 Nd8 98. Be2 Kg7 99. Bh5 Kf6 100. Bf3 1/2-1/2
+
+[Event "Engine Tournament"]
+[Site "Local"]
+[Date "2025.10.15"]
+[Round "9"]
+[White "Engine1"]
+[Black "Engine2"]
+d4 1. d5 c4 2. e6 Nc3 3. Nf6 Bg5 4. Be7 e3 5. O-O Nf3 6. h6 Bh4 7. Ne4 b4 8. Bd6 b5 9. c5 Qa4 10. Qe8 Rb1 11. Be7 Qb4 12. Nxf2 Nd1 13. f6 Ke2 14. Qh5 Qe1 15. Re8 Nxf2 16. a5 dxc5 17. Rd8 Kd2 18. Rd6 Kd3 19. Qf5 Ke2 20. e5 Qc1 21. Rc6 Rg1 22. Bd7 Ne1 23. Ra6 bxa6 24. e4 Nd3 25. Qh3 Rxb7 26. Bf8 Bg3 27. Nxa6 Rb4 28. g5 Rb1 29. h5 Rh1 30. Bh6 Nd1 31. Rc8 Bd6 32. Bg4 Kf2 33. h4 Bb8 34. Nxc5 a4 35. Rf8 Nb2 36. Nb3 Nd3 37. Bf3 Kg1 38. Bh5 Bd6 39. exd3 g4 40. Bxg4 Bc5 41. Qxh2 Rxh2 42. Bxd1 Rc2 43. Bxc2 Ra1 44. Rc8 Qe1 45. Bb1 Bxd3 46. Kf7 Ba7 47. Nxa1 Qxh4 48. Rc6 Qh5 49. Kg8 Qxg5 50. Kh8 Qxf6 51. Rxf6 Bb6 52. Bxe3 Kg2 53. Bxd3 Kg3 54. Rxb6 Kg2 55. Rb1 Kf3 56. Bg5 Kg2 57. Bxc4 Kh2 58. Kh7 Kh3 59. Bh6 Kg4 60. Bb5 Kh4 61. Rg1 Kh5 62. d4 axb5 63. Bf4 Kh4 64. Re1 Kh3 65. Rh1 Kg4 66. Be5 Kg5 67. Nb3 Kg4 68. Rh2 Kf3 69. Bb8 b6 70. Kg6 Kg4 71. Bf4 Kxf4 72. Rh3 b7 73. Rh7 Ke4 74. Rh4 Ke3 75. Rh1 Kf3 76. Rd1 b8=B 77. Rb1 Bd6 78. Re1 Bh2 79. Nd2 Kg3 80. Rc1 Kg2 81. Kh7 Bg3 82. Rf1 Bc7 83. a4 Kh3 84. Nb1 Kg3 85. Rf4 Kh2 86. Nd2 Bd8 87. Rf3 Bf6 88. Rf5 Kh1 89. Kg8 Kg2 90. Nb3 Kh3 91. Rf2 Bg5 92. Rf1 Be3 93. Nd2 Kh4 94. Ra1 Bg1 95. Ra3 Bf2 96. Rc3 Kg5 97. Kf8 Kf4 98. Kg7 Kg4 99. Kg8 Bg1 100. Rc7 1/2-1/2
+
+[Event "Engine Tournament"]
+[Site "Local"]
+[Date "2025.10.15"]
+[Round "10"]
+[White "Engine2"]
+[Black "Engine1"]
+e4 1. e5 Nf3 2. Nf6 d4 3. Be7 Qe2 4. Rg8 c4 5. Rf8 Bh6 6. Nh5 Qd3 7. Bb4 Qd2 8. d6 g4 9. c5 Be3 10. Qa5 gxh5 11. Qa6 Nxe5 12. Nc6 Nc3 13. Ke7 Rb1 14. Rg8 Bf4 15. Bf5 h3 16. d5 Nf3 17. cxd4 Be3 18. Rb8 Rg1 19. Ke6 a3 20. Qxc4 Na2 21. Bf8 Bxc4 22. Be7 Rg5 23. Nd8 Bb5 24. dxe4 Qc1 25. Bg4 Rc5 26. f5 Qc2 27. Kf7 Bxd4 28. h6 Bc3 29. Rc8 Bd7 30. f4 b3 31. g5 Nxg5 32. Kg8 b4 33. Bd6 Bf6 34. Rc7 Ne6 35. Kf7 Bd4 36. Bf8 Rc6 37. Kg8 Bc3 38. b6 Rc4 39. Kf7 h4 40. Kg8 Rxe4 41. Bxe6 Bb5 42. Rc6 Bf6 43. Rc7 Qd3 44. Kh7 Rc4 45. Bf5 Bc6 46. Rg7 Qxf5 47. Kh8 Rc5 48. b5 Qe6 49. Nxc6 Qd5 50. Na5 Rxb5 51. Bd6 Rb6 52. Kh7 Qf7 53. Be7 Ra6 54. Rg8 Qc4 55. Rg6 Nc1 56. Rg3 Ke2 57. Rh8 Rb2 58. Kg6 Bg7 59. Nc6 Qd3 60. Rxd3 Rxc6 61. Kh7 Rc2 62. Rc8 Rd6 63. f3 a4 64. Rc7 Bh8 65. Rd4 Rd2 66. Rc6 Be5 67. Rxd2 Rxd2 68. Rc5 Bb8 69. a5 Rd4 70. fxe2 Na2 71. e1=Q Rf4 72. Rb5 Rf5 73. Rd5 f3 74. Bd6 Nc3 75. Rd3 Rf7 76. Kh8 Rf6 77. Qe7 Rf7 78. Rxf3 b5 79. Qe3 Rf5 80. Qa7 b6 81. Rf2 Rxa5 82. Be5 Nb1 83. Bxb8 Rf5 84. Qa8 Rg5 85. Rc2 Nd2 86. Ba7 Ra5 87. Qd5 Nc4 88. Kg8 Rc5 89. Rd2 Rb5 90. Kf8 Rc5 91. Rg2 Nb2 92. Rg3 Nd1 93. Rg8 bxa7 94. Qf5 Re5 95. Kg7 a8=Q 96. Qf8 Qe4 97. Qf3 Qxf3 98. Rb8 Re3 99. Ra8 Re7 100. Kg6 1/2-1/2
+
+[Event "Engine Tournament"]
+[Site "Local"]
+[Date "2025.10.15"]
+[Round "11"]
+[White "Engine1"]
+[Black "Engine2"]
+e4 1. e5 Nf3 2. Nc6 Bb5 3. a6 Ba4 4. b5 Bb3 5. Na5 Nc3 6. b4 Nd4 7. Nb7 Rg1 8. Bc5 f3 9. Nd6 h3 10. Qg5 Qe2 11. h6 Nb5 12. Bd4 Na4 13. Qh5 Rb1 14. Ra7 Nxd4 15. Ra8 a3 16. Nf6 Nc3 17. Qg6 Qd3 18. a5 Rf1 19. Qxg2 Ne6 20. Rf8 Qd4 21. bxa3 Qa4 22. Ke7 Qc6 23. a2 Qa6 24. axb1=N Qxa5 25. c6 Ba4 26. g6 Qb4 27. Nxc3 Ng5 28. Rxa4 Nh7 29. Qf2 Kxf2 30. Nh5 Qb8 31. Rd4 Qa8 32. Nxe4 Ke3 33. Ke8 b3 34. Nf5 Ke2 35. Ng5 d3 36. Nf4 Kd1 37. f6 Nxf6 38. Kf7 Qxc6 39. Nxf3 Ne8 40. Ng7 Qb5 41. Ne6 Qb7 42. Ne2 Nc7 43. Ng1 Bg5 44. d6 Nxe6 45. Bxb7 Nc7 46. Nxh3 Rg1 47. Nh2 Bd2 48. Kf6 Na8 49. Ng4 Rf1 50. Ke6 Rf5 51. Ba6 Rxf8 52. Rd5 Re8 53. Kf5 Bxh6 54. Nf4 c3 55. Bb7 Rb8 56. Rd4 Rc8 57. Ra4 Rg8 58. Bxa8 bxa4 59. Ne2 a5 60. Nc1 Bf8 61. Bf3 Kxc1 62. Nh2 Bg7 63. Ke4 Ra8 64. Bg2 Bf8 65. Kf3 Kb1 66. Ng4 Bxd6 67. Nh2 Ka1 68. Bh1 Rd8 69. e4 Be7 70. Ng4 dxe4 71. Kf4 Kb2 72. Kg3 Bf6 73. Kh2 Be7 74. Nh6 Rd3 75. Nf7 a6 76. Bg2 Bf8 77. Bh1 Kc1 78. Ng5 Kd1 79. Nf7 a7 80. Nh8 Bd6 81. Kg2 Bf8 82. Kh2 Ke2 83. Kg2 Re3 84. Kh2 Bd6 85. Kg1 Rd3 86. Kg2 a8=B 87. Kg1 Kd1 88. Bxe4 Re3 89. Bh1 Re5 90. Kh2 Be7 91. Nf7 Bf8 92. Kg1 Ba3 93. Nxe5 Ke2 94. Nf7 Bd5 95. Bxd5 Kd3 96. Be4 Ke2 97. Kh2 Bb4 98. Kh3 Ba3 99. Kg3 Be7 100. Kh2 1/2-1/2
+
+[Event "Engine Tournament"]
+[Site "Local"]
+[Date "2025.10.15"]
+[Round "12"]
+[White "Engine2"]
+[Black "Engine1"]
+c4 1. e5 Nc3 2. Nc6 g3 3. g6 Bg2 4. Bg7 e3 5. d6 Bd5 6. Ne7 h4 7. f5 f4 8. exf4 b4 9. Na5 Ke2 10. Bxc3 exf4 11. Bd7 Bb2 12. Nb3 c5 13. Nxc5 Rh2 14. Be5 Qb3 15. Bd4 Qd3 16. Qb8 Rf1 17. Kd8 Bg2 18. Bf6 Qd5 19. Bc3 Qe5 20. g5 Qxd6 21. Bf6 Qd4 22. Ng6 h5 23. Rg8 Qxd7 24. Nxd7 h6 25. Ke7 a4 26. Nb6 d4 27. Rh8 Bxb7 28. g4 Ke1 29. c6 Rh1 30. Be5 Bc8 31. Qxc8 Rf2 32. Qg8 Rf1 33. Rf8 b5 34. Nc8 Rf2 35. Qb3 Rd2 36. Re8 Rh3 37. Nd6 Nf3 38. Nh4 Ke2 39. Qc4 Ke3 40. Rd8 Rxh4 41. Qd5 Ng5 42. Qe6 dxe5 43. Qf7 Rd5 44. Re8 Bc3 45. c5 Rh5 46. Qg7 Bd4 47. Rg8 Nf7 48. Rh8 Rg5 49. Qxe5 Rxe5 50. Kd7 Rxg4 51. fxg4 Ba1 52. Kc7 Re4 53. Rf8 Re7 54. Kb8 Be5 55. a6 Re8 56. Rxe8 Ng5 57. Ka7 Ne4 58. Nxb5 Kf2 59. Rd8 a5 60. Rd6 Ba1 61. Kb6 Bg7 62. Ra8 Ke3 63. Rd4 Kf2 64. Na7 Bh8 65. Rf8 Nf6 66. Kc7 Ng8 67. Rd8 Kf3 68. Rd5 Ke2 69. c4 Kf2 70. Rxg8 Ke3 71. Rg5 Bd4 72. Rb5 Kf2 73. Rb4 Kf3 74. Kd6 Bf6 75. Kc7 Ke4 76. Rg8 Ke5 77. Rb5 Kd4 78. Rd8 Ke4 79. Rb7 Bxd8 80. Kd7 Kd3 81. Ke6 Kc3 82. Rb4 f5 83. Kd5 Bf6 84. Ra4 Bd8 85. Kc6 Kb3 86. Rb4 Kxb4 87. Nb5 Kb3 88. Kc5 Kb2 89. Kc6 Kb1 90. Kd6 f6 91. Kc6 Ka2 92. c3 f7 93. Kd5 Bh4 94. Kc4 Kb1 95. Kd5 Bd8 96. Ke5 Bb6 97. Nd6 Be3 98. Ne8 Bb6 99. Ke4 Kc1 100. Nf6 1/2-1/2
+
+[Event "Engine Tournament"]
+[Site "Local"]
+[Date "2025.10.15"]
+[Round "13"]
+[White "Engine1"]
+[Black "Engine2"]
+e4 1. f5 c4 2. g6 b3 3. a5 g3 4. d5 Qh5 5. Bg7 Qg4 6. Nc6 Kd1 7. Ra6 f3 8. Kf7 Kc2 9. fxg4 e5 10. Nf6 h3 11. Ra7 a3 12. Qg8 Bb2 13. Qd8 cxd5 14. Nxd5 Be2 15. Bf6 Bd3 16. g5 b4 17. b6 Ba6 18. b5 Ra2 19. Qg8 Bc3 20. Bd7 Bb7 21. Nxb4 Kc1 22. Nxe5 a4 23. e6 Rb2 24. Be7 Rh2 25. Na6 Na3 26. Bc5 Rh1 27. Nc6 Kc2 28. Qe8 Kb1 29. Kg8 Bxa6 30. bxa4 Kc1 31. Rxa6 f4 32. Nb8 Rh2 33. c6 Ra2 34. Be7 Rg2 35. Ra7 fxg5 36. Kf8 Bg7 37. Kxg7 h4 38. Bxa3 Rxa3 39. Rf8 Rf3 40. Qe7 Rf1 41. h6 Rf2 42. Qa3 Kc2 43. Qd6 d4 44. Kg6 Rf7 45. Kxg5 Rf3 46. Bc8 Rd2 47. Ra6 Rf2 48. Qd8 Kb2 49. Rf7 Rf1 50. Qh8 hxg5 51. Re7 Rd1 52. Rf7 Rf1 53. Qg7 Rb3 54. Qg8 g6 55. Re7 Rb4 56. Nd7 Nh3 57. Rb6 Rb3 58. h5 Rf8 59. e5 Rf5 60. Re6 Kc1 61. Rf6 Rxe5 62. Ba6 Nf2 63. Qxg6 Re4 64. Nf8 Rd3 65. Bc8 Rd2 66. Rxf2 Re8 67. Be6 Rb8 68. Rf3 Rd1 69. Bf7 Rd2 70. Be8 Rc8 71. Rf7 Rb8 72. Rxb8 d5 73. Qd3 Rh2 74. Rg7 Rg2 75. Ng6 Rg1 76. Rg8 Re1 77. Rc8 Re5 78. Qd2 Kxd2 79. Bd7 Re2 80. Rg7 Re7 81. a3 Ke2 82. Rh7 Kd2 83. Nxe7 Ke1 84. Rh6 Kf2 85. cxd5 Ke2 86. Rc5 Ke3 87. Rg6 Kd4 88. Ba4 Kd3 89. Re6 Kd2 90. Rc6 Kd3 91. Rb6 Kc4 92. Ng8 Kd4 93. Ne7 Kc5 94. h4 Kd4 95. Nf5 Kxd5 96. Rh6 gxh4 97. Bd7 Kc5 98. Rh7 Kc4 99. Rb3 Kxb3 100. Nh6 1/2-1/2
+
+[Event "Engine Tournament"]
+[Site "Local"]
+[Date "2025.10.15"]
+[Round "14"]
+[White "Engine2"]
+[Black "Engine1"]
+Nf3 1. d5 b4 2. c5 bxc5 3. Na6 c6 4. d4 Nh4 5. f5 Ba3 6. b5 Bxe7 7. b4 Rg1 8. Bxe7 c3 9. Qd5 d3 10. bxc3 Qc1 11. Bxh4 Kd1 12. Bg3 Qf4 13. g6 Nxc3 14. Bxh2 Rh1 15. Qd6 Rxh2 16. Qa3 Qd6 17. Nh6 e3 18. dxc3 Qg3 19. f4 Rh3 20. Rb8 Ke2 21. g5 Rh5 22. Qc1 Qh3 23. f3 g4 24. Ra8 c7 25. Qxf1 Kxf3 26. Qe2 Kg2 27. Nxc7 a3 28. Bb7 e4 29. Bxe4 Kh2 30. Bg2 a4 31. O-O Qxg2 32. Rd8 Qe4 33. Rc8 Rh1 34. Nd5 Qe7 35. Qe6 Kg2 36. Qe2 a5 37. Qa2 Qe2 38. Rd8 Qe7 39. Nc7 Qxh7 40. Kxh7 Rh2 41. Qb3 Rh4 42. Qb7 f3 43. Rb8 Kh1 44. Rd8 Rd2 45. Nb5 Rf2 46. a6 Re2 47. Qe7 Rh3 48. Rb7 Rh5 49. Nd4 Rh4 50. Qc5 Rg2 51. Rb8 Kg1 52. Qc6 Rd2 53. Rg7 Kh1 54. Nxf3 Rc2 55. Rg8 Kg2 56. Rf8 Kh3 57. Qb5 Rg2 58. Qxa5 Kg3 59. Nxh4 Rg1 60. Qb6 Rh1 61. Rf4 Ra1 62. Kg7 Ra3 63. Qc6 Ra5 64. Kf7 Ra4 65. Kg7 Rb4 66. Kh8 Rb3 67. Qd6 Ra3 68. Rf7 Kxh4 69. Rf8 Rb3 70. Qxd3 Rb1 71. Rf2 Rf1 72. Qc4 Rg1 73. Rf6 Kg3 74. Qxg4 Kh2 75. Qf5 Kh1 76. Rg7 Rc1 77. Kg8 Kg1 78. Kf8 Re1 79. Qb5 Re2 80. Ra7 Re8 81. Kxe8 Kg2 82. Nf5 Kh3 83. Rh7 Kg4 84. Kf8 Kxg5 85. Rd6 Kf4 86. Rd4 Kf3 87. Rd5 Kg2 88. Qe2 Kg1 89. Qe1 Kg2 90. Kf7 Kf3 91. Qe3 Kg4 92. Nd4 a1 93. Rd8 a1 94. Nc2 Kf5 95. Qe8 Kg5 96. Nd4 Kf4 97. Kf8 Kg5 98. Ne6 Kf5 99. Qh5 Ke4 100. Rd2 1/2-1/2
+
+[Event "Engine Tournament"]
+[Site "Local"]
+[Date "2025.10.15"]
+[Round "15"]
+[White "Engine1"]
+[Black "Engine2"]
+e4 1. c5 Nf3 2. d6 d4 3. Nh6 Be3 4. f6 Bxh6 5. Na6 Bd2 6. Nb8 Bg5 7. a6 Bxf6 8. b5 Qc1 9. Bd7 b3 10. e5 h4 11. cxd4 Rg1 12. Be7 Qg5 13. h6 a3 14. Qc8 g4 15. d3 Bh3 16. a5 Rg2 17. Qb7 Nd2 18. h5 Ra2 19. a4 c4 20. Be6 f4 21. Nd7 Qf5 22. O-O-O Bg5 23. b4 Bf6 24. Qa6 Rf2 25. Re8 Bg5 26. Rg8 Rh2 27. Kd8 Bg2 28. Rf8 gxh5 29. Qxc4 Kd1 30. Qc2 Ke1 31. Nf6 Bh1 32. Bc4 Kf2 33. Ke8 Kf1 34. axb3 Rh3 35. Qxb1 Kf2 36. b2 Qg4 37. Qd1 Nb1 38. Bb3 Qg3 39. Bd5 f5 40. Bc4 Qg4 41. Qxg4 Rf3 42. Nd7 Be3 43. Nb6 Rg3 44. bxa3 Kg1 45. Qh3 Bf3 46. Be6 fxe6 47. Kf7 Bf2 48. Rc8 Be3 49. Rd8 Bd2 50. Qf1 Kh2 51. Kf6 Rg5 52. Ra8 Bg2 53. Qf4 Bxf4 54. Rh8 Be3 55. Re8 Bd4 56. Kf7 Rg4 57. Bf8 Nd2 58. Kg8 Nb1 59. exd4 Bf1 60. g6 e5 61. Rc8 Rg1 62. Bg7 Rg5 63. Rb8 Bxd3 64. Ra8 Bc4 65. Nc8 hxg6 66. Rb8 Bd5 67. Rh7 Rxa3 68. Bh8 Bh1 69. dxe5 Rb3 70. Rb6 Kg3 71. Kg7 Na3 72. Ne7 Rc3 73. Rh5 Nb1 74. Rb4 Kf3 75. dxc3 Kf2 76. Re4 Rg2 77. Rf5 Kg3 78. Rf7 Rh2 79. Nc6 Rf2 80. Kg8 Nxc3 81. Nd8 gxf7 82. b1=Q f8=N 83. Qb8 Nd1 84. Qb1 Rb2 85. Qa2 Kg2 86. Rc4 Rc2 87. Rd4 Kg1 88. e4 Kf2 89. Rb4 Ne3 90. Nxe6 Nd5 91. Ng7 Kg2 92. Qa1 Ne7 93. Kf7 Rc5 94. Qxh1 Kg3 95. Qg1 Kh3 96. Rc4 Ra5 97. Ne6 Nh7 98. Rc6 Ng6 99. Bc3 Nf4 100. Rb6 1/2-1/2
+
+[Event "Engine Tournament"]
+[Site "Local"]
+[Date "2025.10.15"]
+[Round "16"]
+[White "Engine2"]
+[Black "Engine1"]
+e4 1. e5 f4 2. d5 Nf3 3. Qd7 fxe5 4. f5 exf5 5. h6 Qe2 6. Kf7 Qb5 7. Qd8 Qa4 8. Qd7 g3 9. Kf6 Bd3 10. c6 c4 11. a5 c5 12. Qe6 b4 13. Qd7 Na3 14. b5 Nd4 15. Rh7 exf6 16. Qa7 Nxb5 17. cxb5 Qc2 18. Qb6 Ke2 19. gxf6 Qc3 20. Qc6 h4 21. Be7 Qd4 22. Rh8 Ke3 23. Qd7 Be4 24. dxe4 g4 25. Ra6 Qe5 26. a4 Nxb5 27. Qd6 Qxd6 28. a3 Qd4 29. Ra4 Re1 30. Na6 h5 31. Nc7 Bb2 32. Ba6 Nxa3 33. Bb5 Kf2 34. Rxb4 Kg2 35. Ra4 Kf2 36. Rc4 Rg1 37. Bd8 Rg3 38. Ra4 Qd3 39. Bd7 Qd5 40. Bc6 Qe6 41. Rd4 Ke2 42. Nxe6 Re3 43. Ba8 Nc2 44. Bd5 Rxe4 45. Be7 Kf3 46. Ba8 Ke3 47. Nf4 Nxd4 48. Rh7 Re6 49. Bc6 Rxf6 50. Ne6 Rf7 51. Ba4 Rh1 52. Nf4 Nf3 53. Bc2 Ng5 54. Bxf5 Nh3 55. Bd8 Rc7 56. Bc2 Be5 57. Bf5 Rb1 58. Nf6 Ng5 59. Bg6 Rf7 60. Ba5 Rf8 61. Bxd2 Kd4 62. Nd7 Rg1 63. Nxc5 Re8 64. Rc7 Re1 65. Bxh5 gxh5 66. Rg7 Rg1 67. Ne6 Nxe6 68. Nb7 Rg3 69. Bc3 Ke3 70. Re7 Bh8 71. Bb4 a4 72. Ba5 Rf8 73. Rg7 Rf1 74. Rxg3 Kf2 75. Rg1 Nd4 76. Nc5 Be5 77. Ne4 Ke3 78. Bb4 Rf8 79. Be1 Rf7 80. Rg3 Nf3 81. Nf2 Rf5 82. Rg5 Ng1 83. Rg7 Rf8 84. Nd1 Kd4 85. Ne3 Bf4 86. Nd1 Bd2 87. Nc3 Rf4 88. Nb5 axb5 89. Rg5 Ke3 90. Bf2 Kf3 91. Bg3 Bc3 92. Rg4 Re4 93. Rg8 Bf6 94. Rg4 Ke2 95. Bb8 Be7 96. Bh2 Nh3 97. Bg1 Kf1 98. Ba7 Rxg4 99. Bf2 Bf8 100. Be1 1/2-1/2
+
+[Event "Engine Tournament"]
+[Site "Local"]
+[Date "2025.10.15"]
+[Round "17"]
+[White "Engine1"]
+[Black "Engine2"]
+e4 1. e5 f4 2. d5 Nf3 3. Bh3 fxe5 4. h6 Ng1 5. Kd7 Kf2 6. b5 Nc3 7. c6 Nb1 8. Bc5 Ke1 9. a6 Bc4 10. Ke6 Bd3 11. Be7 Qg4 12. Kxe5 Bc4 13. Bb4 a4 14. Nf6 Ne2 15. Bxg2 Ra2 16. Nh5 Qf3 17. Bxh1 Qxh5 18. g5 c3 19. Rg8 Na3 20. bxa4 Nf4 21. Qb6 Kf1 22. Bc5 b3 23. a5 h4 24. dxc4 b4 25. Qd8 Bb2 26. Bf3 hxg5 27. Rxg5 Nxc4 28. Kf5 Ke1 29. Bd6 Qh4 30. Be5 Nb6 31. Bd4 Ne2 32. Ra7 Ng1 33. Bh1 b5 34. Bc5 e5 35. Rb7 Qf4 36. Kg6 Qh4 37. Rxe5 Qe4 38. Kf6 d4 39. Qe7 Nc4 40. Bg2 b6 41. Qf8 Kd2 42. Qe7 Qh7 43. Rg5 Kd3 44. Qd6 Ke3 45. Qd5 Kd3 46. Bb4 Ne2 47. Na6 Nc1 48. Qd7 Qh8 49. Ke7 Ke3 50. a3 Kf2 51. Be4 Qh7 52. Qd6 Ne5 53. Bb1 Ba1 54. Bc2 Qg6 55. Nc5 Qg7 56. Ke6 Qg8 57. Qc7 Ne2 58. Qxb6 Nxc6 59. Ra7 Qa8 60. Rb7 Rxc2 61. Rd7 Ra2 62. Rd8 Qxa5 63. Rg3 Rc2 64. Nb7 Kxg3 65. Qc5 Qxd8 66. Qf5 Qg8 67. Be7 c4 68. h5 Qg6 69. Kd7 Ng1 70. Qc5 Rd2 71. Qf5 Bc3 72. f6 Kh2 73. Ke6 Ne2 74. Qd5 Ng1 75. a2 Qb1 76. Qg2 Kxg2 77. Kd5 Qb2 78. Ba3 c5 79. Ke4 Rd3 80. Kd5 Kh3 81. a1=B Qg2 82. Kxc5 Qf2 83. f5 Qf1 84. h4 Qxa1 85. Na5 Qa2 86. Kb6 Qb3 87. Kxc6 Qa2 88. Kb7 Qe6 89. Ka7 Qe4 90. Nb3 Nf3 91. Bc1 Nd2 92. Na5 Kh2 93. Kb8 Qe5 94. Kc8 Nb1 95. Kb7 Rd2 96. Ka8 Re2 97. Nb7 Qa5 98. Nxa5 Rb2 99. Ka7 Bb4 100. Kb6 1/2-1/2
+
+[Event "Engine Tournament"]
+[Site "Local"]
+[Date "2025.10.15"]
+[Round "18"]
+[White "Engine2"]
+[Black "Engine1"]
+d4 1. Nf6 c4 2. e6 Nc3 3. Bb4 e3 4. O-O Bd3 5. d5 a3 6. h5 Bh7 7. Kxh7 cxd5 8. Re8 Qa4 9. Ne4 Qa6 10. Bd7 Qxa7 11. Na6 Bd2 12. Qg5 Na4 13. Bc5 Bc3 14. Kh8 Ke2 15. Bxa3 Nh3 16. Rg8 Qxa8 17. Qf4 Rg1 18. Qg5 Rc1 19. Qf5 Kd1 20. b6 Ng5 21. Qh3 Nh7 22. Nb4 Qa6 23. Bxa4 Ke2 24. Nc6 g3 25. Na5 Ke1 26. Qg2 Qb7 27. Qh3 Qc6 28. Nxg3 Rd1 29. g6 Bd2 30. Ne4 Qc5 31. Nc4 Qxc7 32. Nxd2 Qd6 33. Qxe3 fxe3 34. e5 Rc1 35. Nxe3 Rc7 36. Ne4 b4 37. Bxb4 Ke2 38. Ng2 Re1 39. Rf8 Nf6 40. Nf2 Nxh5 41. Nd3 Nf4 42. Bc5 Nxd3 43. Nxe1 Qxb6 44. Re8 Rb7 45. Rg8 Qc7 46. Nf3 Qb8 47. Be8 Qd6 48. Nd2 Nf2 49. e4 Rb8 50. Bd7 Rxg8 51. Kxg8 Qa6 52. Bb4 h3 53. Be6 Qa2 54. Bg4 Kd3 55. Ba5 Qc2 56. Bc3 Qxd2 57. f6 Qc2 58. Kf8 Qd1 59. Bd2 d6 60. Bd7 Ke2 61. Bc1 Qe1 62. Be8 Kd1 63. Bf7 Ke2 64. g5 Qb4 65. f5 Qb8 66. Kg7 Kf1 67. Be3 Qg8 68. Kf6 Kg1 69. Be8 Qxe8 70. Bf4 Kg2 71. Be3 Nxe4 72. Kg7 Nf2 73. Kf6 Qf7 74. Kxf7 Kg3 75. Ke7 d5 76. Bb6 Kg4 77. Kxd6 Kh4 78. Bd4 Nd1 79. gxh4 Nf2 80. Bf6 Nd3 81. Be7 Nc5 82. Kxc5 d6 83. Kb6 dxe7 84. Kc6 e8=N 85. Kd5 Nf6 86. Kc6 Nh5 87. Kd5 Ng3 88. f4 Nh5 89. Kc4 Nxf4 90. Kb5 Nh5 91. Kc5 Ng3 92. Kd5 Nf5 93. Ke6 Nxh4 94. Ke5 Nf3 95. Ke4 h4 96. Kf5 Nh2 97. Kg6 Nf1 98. Kf5 Ng3 99. Kf6 Ne2 100. Ke6 1/2-1/2
+
+[Event "Engine Tournament"]
+[Site "Local"]
+[Date "2025.10.15"]
+[Round "19"]
+[White "Engine1"]
+[Black "Engine2"]
+d4 1. Nf6 c4 2. e6 Nc3 3. Bb4 Qc2 4. c5 Qd2 5. Rg8 Qc2 6. d5 f4 7. Rf8 Qd1 8. b5 Rb1 9. h5 Bd2 10. Qb6 a3 11. h4 e4 12. Nxe4 Nxb5 13. f6 Ne2 14. Nd7 f5 15. Rf7 Qa4 16. Nb8 fxe6 17. Kd7 Qc2 18. Qd8 a4 19. Qa5 Nc3 20. g5 Nxe4 21. Kd8 Nc7 22. Ba3 Qd3 23. Qxa4 Qf3 24. h3 gxh3 25. dxc4 Kf2 26. Rg7 Bf4 27. Qb4 Qg4 28. Qa4 Qxg5 29. Bxe6 Ne8 30. Rg6 Nxf6 31. Rg8 Rc1 32. Bxh3 Kf3 33. Rf8 Ne4 34. Kxe8 Qd8 35. Kxd8 Ra1 36. Na6 Nd2 37. Qe8 Bd3 38. Qd7 Ra2 39. Qc8 Ra1 40. Qd7 Rc1 41. Bf1 Rxc4 42. Bxd3 bxa3 43. Rf6 h3 44. Qe8 Nb3 45. Nb4 Rb2 46. Qf7 Ke3 47. a5 Bh6 48. Kc7 dxc5 49. Bb1 Rd4 50. Qd7 Rd1 51. Ba2 Rc1 52. Rh8 Bg5 53. Rf5 Rb1 54. Kd6 Nd4 55. Rf3 Nxf3 56. Qd8 Rb2 57. Qb8 Re2 58. Rg8 Rd1 59. Kc6 Rg2 60. Qf4 Kxf4 61. Rh8 Ke4 62. Rd8 Rd7 63. Nd3 Be3 64. Bf7 Rg1 65. Nb4 Rg2 66. Ba2 Rxa2 67. Rc8 Bf2 68. Rg8 Rg7 69. Rd8 Re7 70. Rb8 Be3 71. Rf8 a4 72. Rh8 Re6 73. Kb5 axb5 74. Nd3 Bg1 75. Rb8 Ra4 76. Rb6 Ra2 77. Ra6 Rc2 78. Rxe6 Ne5 79. Rd6 Nc6 80. Ne1 Kf5 81. a4 Nd8 82. Rf6 Kg4 83. Ng2 Bf2 84. Re6 Kf3 85. Rg6 Bg3 86. Rxg3 Kxg3 87. a3 Kg4 88. Nh4 Rh2 89. Ng2 h4 90. Nxh4 Rd2 91. Nf5 Rd1 92. Nh6 Kg3 93. Ng8 Rd5 94. a2 Nb7 95. Ne7 Rg5 96. a1=Q c6 97. Qf6 Rg8 98. Qf8 Kh4 99. Qd8 Rg7 100. Qd6 1/2-1/2
+
+[Event "Engine Tournament"]
+[Site "Local"]
+[Date "2025.10.15"]
+[Round "20"]
+[White "Engine2"]
+[Black "Engine1"]
+e4 1. c6 d4 2. d5 Nc3 3. g6 h3 4. h6 Bb5 5. f6 Ba6 6. Bf5 Rb1 7. Be6 h4 8. f5 g3 9. Nxa6 Ra1 10. f4 h5 11. Rh7 Nb5 12. Bc8 a4 13. Be6 f3 14. gxh5 Be3 15. Bf7 gxf4 16. Bg6 exd5 17. Nb8 Nh3 18. a5 Nd6 19. Kd7 Rc1 20. Qc7 Rf1 21. Qc8 Kf2 22. cxd5 Rg1 23. Qxc2 Qd2 24. h4 Ke2 25. h5 Rg5 26. Qd3 Kf2 27. Ke6 Qxd3 28. Kf6 Rc4 29. Nc6 Qd1 30. Bh6 Rg1 31. Rh8 Re1 32. Bf7 Rg1 33. Ra7 Qc1 34. Ra6 Kg2 35. Ke5 Nf5 36. Nf6 Bf2 37. Bg6 Qe1 38. Ne4 Qd2 39. Na7 Qc3 40. Kf6 Bxh4 41. Bg5 Nh6 42. Rb6 Bg3 43. Nd2 fxg5 44. Rg8 Be5 45. Ke6 Qb3 46. Bb1 Ng4 47. Bh7 Qa3 48. Be4 Qc3 49. Nb1 Rc1 50. Rb8 Kh1 51. Bf5 Nf6 52. Rb5 Kg2 53. Rd8 Qd2 54. Rb4 Ng8 55. Rf8 Re1 56. Rb3 Bf6 57. Kd7 Qc2 58. Bh7 Re5 59. Bxc2 Re4 60. Rd8 Rxc2 61. b6 Rg4 62. h4 Bg7 63. Na3 Bh8 64. Nxc2 Ng1 65. Ne1 Kh2 66. b5 axb5 67. Rc3 b3 68. e5 Ne2 69. Nc6 Ng3 70. Re3 dxe5 71. h3 Bf6 72. Nxf3 Kh1 73. Ng1 b4 74. Re8 Kxg1 75. Kd6 Ne2 76. axb4 exd6 77. d4 Nh6 78. Rb3 Be5 79. Rb2 Kh1 80. Nxe5 g6 81. Re7 Ng8 82. Rxe2 Rxd4 83. Rf7 Rd1 84. Nf3 Rd4 85. Rh7 g7 86. Re5 Kg2 87. Ng5 d7 88. b3 d8=N 89. Rh6 Kf1 90. Rd5 Nb7 91. Rh8 gxh8=Q 92. Rxd4 Qh6 93. Rd7 Qc6 94. b2 Kg2 95. b1=Q Qf3 96. h2 Kf2 97. Rd2 Qe2 98. Qe1 Kg2 99. Qc1 Kxh2 100. Qe1 1/2-1/2
+
+[Event "Engine Tournament"]
+[Site "Local"]
+[Date "2025.10.15"]
+[Round "21"]
+[White "Engine1"]
+[Black "Engine2"]
+d4 1. Nf6 c4 2. g6 Nc3 3. d5 Nf3 4. Bg7 e3 5. O-O Qb3 6. e6 Ne4 7. c5 Qa4 8. Bd7 b4 9. h5 a3 10. Nc6 g3 11. b5 Kd1 12. g5 h4 13. Qe7 Ne5 14. Qd6 Nxd7 15. Rb8 Bb2 16. Nxe4 Qa5 17. e5 Qxb5 18. Bh6 dxc5 19. g4 Ra2 20. Kg7 f3 21. a5 a4 22. Kg6 Ra3 23. Rh8 Bd4 24. Qf6 Ra1 25. Nc3 Bxc3 26. Qxh4 Rc1 27. gxf3 Nf6 28. Bg7 cxd5 29. Qg5 Rh4 30. Rd8 Qb8 31. e4 Rc2 32. f2 Be2 33. Rd7 Bb5 34. Bxf6 Rxh5 35. Ne5 Bc4 36. axb4 Rxh8 37. Kf5 Bd3 38. Qxe3 Qf8 39. exd3 Rh2 40. Rxd5 Qh8 41. d2 Rh1 42. Kg4 Rh4 43. Kf5 Rd4 44. Nd7 Qh3 45. Ke5 Ba1 46. Bg7 Bc3 47. f6 Rxb4 48. Qxc3 Qxd7 49. Qa1 Rc1 50. f1=Q Kc2 51. Qb5 Qc6 52. d1=N Qd6 53. Kf5 Rh4 54. Qd7 Rh2 55. Qd4 Rg2 56. Qd3 a1 57. Qe2 Kb3 58. Qe8 Rf2 59. Kg4 Qxd7 60. Kh4 g4 61. Rd6 Ka2 62. Qg6 Rf4 63. Nc3 Rxc3 64. Qh7 Rd3 65. Qg8 Ka3 66. Rd4 Qb5 67. Qb8 Qb3 68. Qa8 Qb5 69. Qg8 Rd2 70. Qh7 Qe2 71. Qh8 Kb3 72. Qh7 c6 73. Qe4 Qf3 74. Qb1 Ka3 75. Bh6 Qf1 76. Qd1 Qa6 77. Rb4 a5 78. Ra4 Rxa4 79. f5 Rxd1 80. Kh5 Rd6 81. Bd2 Rd4 82. Bh6 Qc4 83. Bg7 Kb2 84. Bh8 a6 85. Kg6 Kc2 86. Be5 Qc5 87. Kh6 Rd7 88. Kg5 gxf5 89. Bg3 Qd5 90. Kh5 Rb7 91. Bb8 Rf4 92. Bc7 Qd1 93. Kg6 Rg4 94. Kh5 Rb1 95. Bd8 Rb4 96. Bc7 Rg6 97. Kxg6 Qd4 98. Kh5 Rb7 99. Be5 Ra7 100. Bd6 1/2-1/2
+
+[Event "Engine Tournament"]
+[Site "Local"]
+[Date "2025.10.15"]
+[Round "22"]
+[White "Engine2"]
+[Black "Engine1"]
+e4 1. e5 Nc3 2. Nc6 f4 3. Be7 Rb1 4. a5 fxe5 5. Ra6 Kf2 6. Nh6 Bxa6 7. Bh4 Kf1 8. O-O e6 9. dxe6 Bb5 10. Qe7 Bc4 11. Qd7 Nd5 12. b6 g4 13. Re8 Bd3 14. Bf2 Nxc7 15. f5 Ke2 16. Kh8 Bc4 17. Bc5 c3 18. Bd6 Na8 19. b5 Ra1 20. Nd4 Kf1 21. Bb4 Kg2 22. Re7 Kf2 23. Qd8 Kg3 24. e5 Ne2 25. Nf3 Qg1 26. Ng5 Bxb5 27. Kg8 Qe3 28. Rc7 b3 29. Nf3 exf5 30. Nxh2 d4 31. e4 Bc6 32. Ra7 Be8 33. Qe7 Qf4 34. Qe6 Bg6 35. Qb6 Bxh7 36. Kh8 Qxh6 37. Bf8 Qg5 38. Qxb3 Nf4 39. Nf3 Bg8 40. Nh4 Nd5 41. Kxg8 Qf6 42. Qb7 Rg1 43. Qxd5 Qh6 44. Bb4 Rg2 45. g6 Qe3 46. Rb7 Kf2 47. Rb5 Qg5 48. Qb3 Kf1 49. Be7 c4 50. Rc5 Rg3 51. Ng2 fxg6 52. Kf8 Re3 53. Kg8 Kxg2 54. Bf5 Kf3 55. Qxe3 Bxe3 56. Bd6 Bc1 57. e3 Bxe3 58. Bxg4 Kg2 59. Rc6 Qe7 60. Rc5 Qe4 61. Re5 Qf3 62. Bxf3 Kf1 63. Bg2 Kxg2 64. Bc7 Kh1 65. Bb6 Bd2 66. Rd5 cxd5 67. Kh8 Rb1 68. Kg8 Nxb6 69. Kf7 Rd1 70. Kf8 Kh2 71. a4 Kg2 72. Kg8 a3 73. Kf8 Rb1 74. Ke7 Kf3 75. Kf6 g7 76. Ke6 Nc8 77. Kd7 Rb4 78. Kc7 Rb5 79. Kd8 Kg4 80. Kxc8 Rb1 81. Kd7 Be3 82. Kd8 
