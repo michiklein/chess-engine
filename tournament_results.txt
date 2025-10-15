@@ -1,6 +1,6 @@
 Tournament Results
 ==================
-Total Games: 100
+Total Games: 10
 Engine 1 Wins: 0 (0%)
 Engine 2 Wins: 0 (0%)
-Draws: 100 (100%)
+Draws: 10 (100%)

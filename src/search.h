@@ -34,6 +34,9 @@ public:
     // Opening book
     bool loadOpeningBook(const std::string& filename);
     
+    // Helper functions (public for inheritance)
+    int getPieceValue(PieceType type);
+    
     
 private:
     int maxDepth;
@@ -60,8 +63,6 @@ private:
     // Evaluation function
     int evaluate(const Board& board);
     
-    // Helper functions
-    int getPieceValue(PieceType type);
     int getPositionalValue(PieceType type, Square square, Color color);
     void orderMoves(const Board& board, std::vector<Move>& moves);
     
@@ -83,6 +84,11 @@ private:
     int evaluateKingAttack(const Board& board, Color color);
     int evaluateCaptures(const Board& board);
     int evaluateHungPieces(const Board& board);
+    
+    // New enhanced evaluation functions
+    int evaluateMaterial(const Board& board);
+    int evaluateMobility(const Board& board);
+    int evaluateKingSafety(const Board& board);
 };
 
 // Constants for evaluation

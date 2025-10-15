@@ -1,6 +1,7 @@
 #include "board.h"
 #include "movegen.h"
 #include "search.h"
+#include "baseline_engine.h"
 #include "types.h"
 #include <iostream>
 #include <string>
@@ -15,8 +16,8 @@
 class EngineTournament {
 private:
     Board board;
-    SearchEngine engine1;
-    SearchEngine engine2;
+    SearchEngine engine1;  // Enhanced engine
+    BaselineEngine engine2; // Baseline engine
     std::mt19937 rng;
     
     // Statistics
@@ -41,6 +42,9 @@ public:
         // Enable quiet mode to suppress verbose output
         engine1.setQuietMode(true);
         engine2.setQuietMode(true);
+        
+        std::cout << "Engine 1: Enhanced evaluation (material + mobility + center + king safety + hanging pieces)" << std::endl;
+        std::cout << "Engine 2: Baseline evaluation (material only)" << std::endl;
     }
     
     void runTournament(int numGames) {
@@ -153,8 +157,8 @@ private:
             Move move = result.bestMove;
             
             // Add move to PGN BEFORE making the move (so we can get piece info)
-            if (board.getSideToMove() == Color::BLACK) {
-                gamePGN += std::to_string((moveCount + 1) / 2) + ". ";
+            if (board.getSideToMove() == Color::WHITE) {
+                gamePGN += std::to_string((moveCount / 2) + 1) + ". ";
             }
             gamePGN += moveToAlgebraic(move) + " ";
             
@@ -275,6 +279,6 @@ private:
 
 int main() {
     EngineTournament tournament;
-    tournament.runTournament(100);
+    tournament.runTournament(10); // Test improved engine
     return 0;
 }
