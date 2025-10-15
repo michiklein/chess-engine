@@ -4,6 +4,7 @@
 #include <iostream>
 #include <sstream>
 #include <iomanip>
+#include <random>
 
 SearchEngine::SearchEngine() : maxDepth(8), timeLimit(5000), nodesSearched(0), currentDepth(0), useOpeningBook(false) {
     // Initialize killer moves table
@@ -45,35 +46,26 @@ SearchResult SearchEngine::search(const Board& board, int depth) {
             std::cout << "Playing from opening book: " << openingBook.getEcoCode(board) << std::endl;
             return result;
         } else {
-            std::cout << "No opening book move found, using search" << std::endl;
+            std::cout << "No opening book move found, playing random move" << std::endl;
         }
     }
     
-    // Order moves for better search efficiency
-    orderMoves(board, moves);
-    
-    int bestScore = std::numeric_limits<int>::min();
-    Move bestMove = moves[0];
-    
-    for (const Move& move : moves) {
-        Board testBoard = board;
-        testBoard.makeMove(move);
-        
-        int score = -alphaBeta(testBoard, depth - 1, 
-                              std::numeric_limits<int>::min(), 
-                              std::numeric_limits<int>::max(), 
-                              false);
-        
-        if (score > bestScore) {
-            bestScore = score;
-            bestMove = move;
-        }
+    // After opening book, play random moves
+    if (moves.empty()) {
+        result.score = board.isInCheck(board.getSideToMove()) ? -MATE_SCORE : DRAW_SCORE;
+        return result;
     }
     
-    result.bestMove = bestMove;
-    result.score = bestScore;
+    // Select a random move from all legal moves
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, moves.size() - 1);
+    int randomIndex = dis(gen);
+    
+    result.bestMove = moves[randomIndex];
+    result.score = 0; // Neutral score for random moves
     result.depth = depth;
-    result.nodesSearched = nodesSearched;
+    result.nodesSearched = 0;
     
     return result;
 }
@@ -144,60 +136,19 @@ int SearchEngine::evaluate(const Board& board) {
         return (sideToMove == Color::WHITE) ? -MATE_SCORE : MATE_SCORE;
     }
     
-    // Check for immediate check (strong incentive)
-    if (board.isInCheck(Color::WHITE)) {
-        score -= 100; // Penalty for being in check
-    }
-    if (board.isInCheck(Color::BLACK)) {
-        score += 100; // Bonus for putting opponent in check
-    }
-    
-    // Material evaluation with piece-square tables
+    // Simple material evaluation only
     for (Square sq = 0; sq < 64; sq++) {
         const Piece& piece = board.pieceAt(sq);
         if (!piece.isEmpty()) {
             int pieceValue = getPieceValue(piece.type);
-            int positionalValue = getPositionalValue(piece.type, sq, piece.color);
-            int mobilityValue = getMobilityValue(board, sq, piece);
-            
-            int totalValue = pieceValue + positionalValue + mobilityValue;
             
             if (piece.color == Color::WHITE) {
-                score += totalValue;
+                score += pieceValue;
             } else {
-                score -= totalValue;
+                score -= pieceValue;
             }
         }
     }
-    
-    // King safety evaluation
-    score += evaluateKingSafety(board, Color::WHITE);
-    score -= evaluateKingSafety(board, Color::BLACK);
-    
-    // Pawn structure evaluation
-    score += evaluatePawnStructure(board, Color::WHITE);
-    score -= evaluatePawnStructure(board, Color::BLACK);
-    
-    // Center control
-    score += evaluateCenterControl(board, Color::WHITE);
-    score -= evaluateCenterControl(board, Color::BLACK);
-    
-    // Development (pieces off starting squares)
-    score += evaluateDevelopment(board, Color::WHITE);
-    score -= evaluateDevelopment(board, Color::BLACK);
-    
-    // Tactical bonuses
-    score += evaluateTactics(board);
-    
-    // Capture evaluation (safe vs unsafe captures)
-    score += evaluateCaptures(board);
-    
-    // Hung pieces evaluation
-    score += evaluateHungPieces(board);
-    
-    // King attack bonuses (moves toward checkmate)
-    score += evaluateKingAttack(board, Color::WHITE);
-    score -= evaluateKingAttack(board, Color::BLACK);
     
     return score;
 }
@@ -342,15 +293,7 @@ void SearchEngine::orderMoves(const Board& board, std::vector<Move>& moves) {
         if (!aCapture && bCapture) return false;
         
         if (aCapture && bCapture) {
-            // Enhanced capture ordering: safe captures first, then MVV-LVA
-            bool aSafe = isSafeCapture(board, a);
-            bool bSafe = isSafeCapture(board, b);
-            
-            // Safe captures are always better than unsafe captures
-            if (aSafe && !bSafe) return true;
-            if (!aSafe && bSafe) return false;
-            
-            // If both are safe or both are unsafe, use MVV-LVA
+            // Simple MVV-LVA ordering
             int aVictimValue = getPieceValue(board.pieceAt(a.to).type);
             int aAttackerValue = getPieceValue(board.pieceAt(a.from).type);
             int bVictimValue = getPieceValue(board.pieceAt(b.to).type);
@@ -374,11 +317,8 @@ void SearchEngine::orderMoves(const Board& board, std::vector<Move>& moves) {
         
         if (aHistory != bHistory) return aHistory > bHistory;
         
-        // 4. Positional evaluation (prefer moves to better squares)
-        int aPositional = getPositionalValue(board.pieceAt(a.from).type, a.to, board.pieceAt(a.from).color);
-        int bPositional = getPositionalValue(board.pieceAt(b.from).type, b.to, board.pieceAt(b.from).color);
-        
-        return aPositional > bPositional;
+        // 4. Random tiebreaker for equal moves
+        return false;
     });
 }
 
