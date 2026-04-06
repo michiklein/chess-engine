@@ -1,4 +1,5 @@
 #include "board.h"
+#include "movegen.h"
 #include <sstream>
 #include <cctype>
 
@@ -7,35 +8,28 @@ Board::Board() {
 }
 
 void Board::setupStartingPosition() {
-    // Clear all bitboards
-    for (auto& bb : pieceBitboards) {
-        bb = EMPTY_BOARD;
-    }
-    
-    // Set up white pieces
-    pieceBitboards[0] = setBit(setBit(setBit(setBit(setBit(setBit(setBit(setBit(EMPTY_BOARD, A2), B2), C2), D2), E2), F2), G2), H2); // White pawns
-    pieceBitboards[1] = setBit(setBit(EMPTY_BOARD, B1), G1); // White knights
-    pieceBitboards[2] = setBit(setBit(EMPTY_BOARD, C1), F1); // White bishops
-    pieceBitboards[3] = setBit(setBit(EMPTY_BOARD, A1), H1); // White rooks
-    pieceBitboards[4] = setBit(EMPTY_BOARD, D1); // White queen
-    pieceBitboards[5] = setBit(EMPTY_BOARD, E1); // White king
-    
-    // Set up black pieces
-    pieceBitboards[6] = setBit(setBit(setBit(setBit(setBit(setBit(setBit(setBit(EMPTY_BOARD, A7), B7), C7), D7), E7), F7), G7), H7); // Black pawns
-    pieceBitboards[7] = setBit(setBit(EMPTY_BOARD, B8), G8); // Black knights
-    pieceBitboards[8] = setBit(setBit(EMPTY_BOARD, C8), F8); // Black bishops
-    pieceBitboards[9] = setBit(setBit(EMPTY_BOARD, A8), H8); // Black rooks
-    pieceBitboards[10] = setBit(EMPTY_BOARD, D8); // Black queen
-    pieceBitboards[11] = setBit(EMPTY_BOARD, E8); // Black king
-    
-    // Set initial game state
+    for (auto& bb : pieceBitboards) bb = EMPTY_BOARD;
+
+    pieceBitboards[0] = setBit(setBit(setBit(setBit(setBit(setBit(setBit(setBit(EMPTY_BOARD, A2), B2), C2), D2), E2), F2), G2), H2);
+    pieceBitboards[1] = setBit(setBit(EMPTY_BOARD, B1), G1);
+    pieceBitboards[2] = setBit(setBit(EMPTY_BOARD, C1), F1);
+    pieceBitboards[3] = setBit(setBit(EMPTY_BOARD, A1), H1);
+    pieceBitboards[4] = setBit(EMPTY_BOARD, D1);
+    pieceBitboards[5] = setBit(EMPTY_BOARD, E1);
+    pieceBitboards[6] = setBit(setBit(setBit(setBit(setBit(setBit(setBit(setBit(EMPTY_BOARD, A7), B7), C7), D7), E7), F7), G7), H7);
+    pieceBitboards[7] = setBit(setBit(EMPTY_BOARD, B8), G8);
+    pieceBitboards[8] = setBit(setBit(EMPTY_BOARD, C8), F8);
+    pieceBitboards[9] = setBit(setBit(EMPTY_BOARD, A8), H8);
+    pieceBitboards[10] = setBit(EMPTY_BOARD, D8);
+    pieceBitboards[11] = setBit(EMPTY_BOARD, E8);
+
     sideToMove = Color::WHITE;
     canCastleKingSide[0] = canCastleKingSide[1] = true;
     canCastleQueenSide[0] = canCastleQueenSide[1] = true;
-    enPassantSquare = 64; // Invalid square
+    enPassantSquare = 64;
     halfMoveClock = 0;
     fullMoveNumber = 1;
-    
+
     updateCombinedBitboards();
 }
 
@@ -51,14 +45,11 @@ Piece Board::pieceAt(Square sq) const {
 }
 
 void Board::setPiece(Square sq, const Piece& piece) {
-    // Clear the square first
     clearSquare(sq);
-    
     if (!piece.isEmpty()) {
         int index = getPieceIndex(piece.type, piece.color);
         pieceBitboards[index] = setBit(pieceBitboards[index], sq);
     }
-    
     updateCombinedBitboards();
 }
 
@@ -84,120 +75,65 @@ void Board::setCastlingRights(Color color, bool kingSide, bool canCastle) {
 }
 
 void Board::makeMove(const Move& move) {
-    // Save game state for unmake
     GameState state;
-    state.capturedPiece = pieceAt(move.to);
     state.castlingRights[0] = canCastleKingSide[0];
     state.castlingRights[1] = canCastleQueenSide[0];
     state.castlingRights[2] = canCastleKingSide[1];
     state.castlingRights[3] = canCastleQueenSide[1];
     state.enPassantSquare = enPassantSquare;
     state.halfMoveClock = halfMoveClock;
+    state.pieceBitboards = pieceBitboards;
     state.whitePieces = whitePieces;
     state.blackPieces = blackPieces;
     state.allPieces = allPieces;
     gameHistory.push_back(state);
     
-    Piece movingPiece = pieceAt(move.from);
-    Piece capturedPiece = pieceAt(move.to);
-    
-    // Clear the from square
+    Piece movingPiece   = pieceAt(move.from);
+    bool  isCapture     = !pieceAt(move.to).isEmpty() || move.isEnPassant;
+
     clearSquare(move.from);
-    
-    // Handle special moves
+
     if (move.isCastle) {
-        // Move the rook for castling
-        if (move.to == G1) { // White king-side castle
-            clearSquare(H1);
-            setPiece(F1, Piece(PieceType::ROOK, Color::WHITE));
-        } else if (move.to == C1) { // White queen-side castle
-            clearSquare(A1);
-            setPiece(D1, Piece(PieceType::ROOK, Color::WHITE));
-        } else if (move.to == G8) { // Black king-side castle
-            clearSquare(H8);
-            setPiece(F8, Piece(PieceType::ROOK, Color::BLACK));
-        } else if (move.to == C8) { // Black queen-side castle
-            clearSquare(A8);
-            setPiece(D8, Piece(PieceType::ROOK, Color::BLACK));
-        }
+        if      (move.to == G1) { clearSquare(H1); setPiece(F1, Piece(PieceType::ROOK, Color::WHITE)); }
+        else if (move.to == C1) { clearSquare(A1); setPiece(D1, Piece(PieceType::ROOK, Color::WHITE)); }
+        else if (move.to == G8) { clearSquare(H8); setPiece(F8, Piece(PieceType::ROOK, Color::BLACK)); }
+        else if (move.to == C8) { clearSquare(A8); setPiece(D8, Piece(PieceType::ROOK, Color::BLACK)); }
     }
-    
-    if (move.isEnPassant) {
-        // Remove the captured pawn
-        Square capturedSquare = sideToMove == Color::WHITE ? move.to - 8 : move.to + 8;
-        clearSquare(capturedSquare);
-    }
-    
-    // Set the piece on the destination square
-    PieceType finalPieceType = (move.promotion != PieceType::NONE) ? move.promotion : movingPiece.type;
-    setPiece(move.to, Piece(finalPieceType, movingPiece.color));
-    
-    // Update game state
+
+    if (move.isEnPassant)
+        clearSquare(sideToMove == Color::WHITE ? move.to - 8 : move.to + 8);
+
+    PieceType finalType = (move.promotion != PieceType::NONE) ? move.promotion : movingPiece.type;
+    setPiece(move.to, Piece(finalType, movingPiece.color));
+
     updateCastlingRights(move);
     updateEnPassant(move);
-    
-    // Update move counters
-    if (movingPiece.type == PieceType::PAWN || !capturedPiece.isEmpty()) {
-        halfMoveClock = 0;
-    } else {
-        halfMoveClock++;
-    }
-    
-    if (sideToMove == Color::BLACK) {
-        fullMoveNumber++;
-    }
+
+    halfMoveClock = (movingPiece.type == PieceType::PAWN || isCapture) ? 0 : halfMoveClock + 1;
+
+    if (sideToMove == Color::BLACK) fullMoveNumber++;
     
     switchSideToMove();
 }
 
 void Board::unmakeMove(const Move& move) {
     if (gameHistory.empty()) return;
-    
-    // Restore game state
     GameState state = gameHistory.back();
     gameHistory.pop_back();
-    
-    canCastleKingSide[0] = state.castlingRights[0];
+
+    canCastleKingSide[0]  = state.castlingRights[0];
     canCastleQueenSide[0] = state.castlingRights[1];
-    canCastleKingSide[1] = state.castlingRights[2];
+    canCastleKingSide[1]  = state.castlingRights[2];
     canCastleQueenSide[1] = state.castlingRights[3];
     enPassantSquare = state.enPassantSquare;
-    halfMoveClock = state.halfMoveClock;
-    whitePieces = state.whitePieces;
-    blackPieces = state.blackPieces;
-    allPieces = state.allPieces;
-    
-    // Restore piece bitboards
-    for (int i = 0; i < 12; i++) {
-        pieceBitboards[i] = EMPTY_BOARD;
-    }
-    
-    // Reconstruct piece bitboards from combined bitboards
-    for (Square sq = 0; sq < 64; sq++) {
-        if (getBit(whitePieces, sq)) {
-            // Find which white piece is on this square
-            for (int i = 0; i < 6; i++) {
-                if (getBit(pieceBitboards[i], sq)) {
-                    break;
-                }
-            }
-        }
-        if (getBit(blackPieces, sq)) {
-            // Find which black piece is on this square
-            for (int i = 6; i < 12; i++) {
-                if (getBit(pieceBitboards[i], sq)) {
-                    break;
-                }
-            }
-        }
-    }
-    
-    // Switch side to move back
+    halfMoveClock   = state.halfMoveClock;
+    pieceBitboards  = state.pieceBitboards;
+    whitePieces     = state.whitePieces;
+    blackPieces     = state.blackPieces;
+    allPieces       = state.allPieces;
+
     switchSideToMove();
-    
-    if (sideToMove == Color::BLACK) {
-        fullMoveNumber--;
-    }
+    if (sideToMove == Color::BLACK) fullMoveNumber--;
 }
 
 bool Board::isInCheck(Color color) const {
@@ -206,131 +142,152 @@ bool Board::isInCheck(Color color) const {
 }
 
 bool Board::isCheckmate() const {
-    if (!isInCheck(sideToMove)) {
-        return false;
-    }
-    
-    // Generate all legal moves for current side
-    // For now, we'll use a simple approach - this will be optimized later
-    for (Square sq = 0; sq < 64; sq++) {
-        Piece piece = pieceAt(sq);
-        if (!piece.isEmpty() && piece.color == sideToMove) {
-            // Check if this piece has any legal moves
-            // This is a simplified check - full implementation would generate all moves
-        }
-    }
-    
-    return false; // Simplified for now
+    return isInCheck(sideToMove) && MoveGenerator::generateLegalMoves(*this).empty();
 }
 
 bool Board::isStalemate() const {
-    if (isInCheck(sideToMove)) {
-        return false;
-    }
-    
-    // Similar to checkmate but not in check
-    return false; // Simplified for now
+    return !isInCheck(sideToMove) && MoveGenerator::generateLegalMoves(*this).empty();
 }
 
 Square Board::findKing(Color color) const {
-    int kingIndex = getPieceIndex(PieceType::KING, color);
-    if (pieceBitboards[kingIndex] == EMPTY_BOARD) {
-        return 64; // King not found
-    }
-    return firstSquare(pieceBitboards[kingIndex]);
+    int idx = getPieceIndex(PieceType::KING, color);
+    return pieceBitboards[idx] ? firstSquare(pieceBitboards[idx]) : 64;
 }
 
 bool Board::isSquareAttacked(Square sq, Color attacker) const {
-    Bitboard attackerPieces = (attacker == Color::WHITE) ? whitePieces : blackPieces;
-    
-    // Check pawn attacks
-    Bitboard pawnAttacks = getPawnAttacks(sq, attacker);
-    if (pawnAttacks & getPieceBitboard(PieceType::PAWN, attacker)) {
-        return true;
-    }
-    
-    // Check knight attacks
-    Bitboard knightAttacks = getKnightAttacks(sq);
-    if (knightAttacks & getPieceBitboard(PieceType::KNIGHT, attacker)) {
-        return true;
-    }
-    
-    // Check bishop/queen diagonal attacks
-    Bitboard bishopAttacks = getBishopAttacks(sq, allPieces);
-    if (bishopAttacks & (getPieceBitboard(PieceType::BISHOP, attacker) | getPieceBitboard(PieceType::QUEEN, attacker))) {
-        return true;
-    }
-    
-    // Check rook/queen straight attacks
-    Bitboard rookAttacks = getRookAttacks(sq, allPieces);
-    if (rookAttacks & (getPieceBitboard(PieceType::ROOK, attacker) | getPieceBitboard(PieceType::QUEEN, attacker))) {
-        return true;
-    }
-    
-    // Check king attacks
-    Bitboard kingAttacks = getKingAttacks(sq);
-    if (kingAttacks & getPieceBitboard(PieceType::KING, attacker)) {
-        return true;
-    }
-    
+    if (getPawnAttacks(sq, attacker)   & getPieceBitboard(PieceType::PAWN,   attacker)) return true;
+    if (getKnightAttacks(sq)           & getPieceBitboard(PieceType::KNIGHT, attacker)) return true;
+    if (getKingAttacks(sq)             & getPieceBitboard(PieceType::KING,   attacker)) return true;
+
+    Bitboard diag = getBishopAttacks(sq, allPieces);
+    if (diag & (getPieceBitboard(PieceType::BISHOP, attacker) | getPieceBitboard(PieceType::QUEEN, attacker))) return true;
+
+    Bitboard straight = getRookAttacks(sq, allPieces);
+    if (straight & (getPieceBitboard(PieceType::ROOK, attacker) | getPieceBitboard(PieceType::QUEEN, attacker))) return true;
+
     return false;
 }
 
 Bitboard Board::getPieceBitboard(PieceType type, Color color) const {
-    int index = getPieceIndex(type, color);
-    return pieceBitboards[index];
-}
-
-std::string Board::toString() const {
-    std::ostringstream oss;
-    
-    for (int rank = 7; rank >= 0; rank--) {
-        oss << (rank + 1) << " ";
-        for (int file = 0; file < 8; file++) {
-            Square sq = makeSquare(file, rank);
-            Piece piece = pieceAt(sq);
-            
-            char symbol = '.';
-            if (!piece.isEmpty()) {
-                switch (piece.type) {
-                    case PieceType::PAWN:   symbol = 'P'; break;
-                    case PieceType::KNIGHT: symbol = 'N'; break;
-                    case PieceType::BISHOP: symbol = 'B'; break;
-                    case PieceType::ROOK:   symbol = 'R'; break;
-                    case PieceType::QUEEN:  symbol = 'Q'; break;
-                    case PieceType::KING:   symbol = 'K'; break;
-                    default: symbol = '?'; break;
-                }
-                if (piece.color == Color::BLACK) {
-                    symbol = std::tolower(symbol);
-                }
-            }
-            oss << symbol << " ";
-        }
-        oss << "\n";
-    }
-    oss << "  a b c d e f g h\n";
-    oss << "Side to move: " << (sideToMove == Color::WHITE ? "White" : "Black") << "\n";
-    
-    return oss.str();
+    return pieceBitboards[getPieceIndex(type, color)];
 }
 
 std::string Board::toFEN() const {
-    // Simplified FEN implementation - placeholder
-    return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    std::ostringstream oss;
+
+    // Piece placement (rank 8 down to rank 1)
+    for (int rank = 7; rank >= 0; rank--) {
+        int empty = 0;
+        for (int file = 0; file < 8; file++) {
+            Piece piece = pieceAt(makeSquare(file, rank));
+            if (piece.isEmpty()) {
+                empty++;
+            } else {
+                if (empty > 0) { oss << empty; empty = 0; }
+                char c;
+                switch (piece.type) {
+                    case PieceType::PAWN:   c = 'p'; break;
+                    case PieceType::KNIGHT: c = 'n'; break;
+                    case PieceType::BISHOP: c = 'b'; break;
+                    case PieceType::ROOK:   c = 'r'; break;
+                    case PieceType::QUEEN:  c = 'q'; break;
+                    case PieceType::KING:   c = 'k'; break;
+                    default:                c = '?'; break;
+                }
+                if (piece.color == Color::WHITE) c = std::toupper(c);
+                oss << c;
+            }
+        }
+        if (empty > 0) oss << empty;
+        if (rank > 0) oss << '/';
+    }
+
+    // Side to move
+    oss << (sideToMove == Color::WHITE ? " w " : " b ");
+
+    // Castling rights
+    std::string castling;
+    if (canCastleKingSide[0])  castling += 'K';
+    if (canCastleQueenSide[0]) castling += 'Q';
+    if (canCastleKingSide[1])  castling += 'k';
+    if (canCastleQueenSide[1]) castling += 'q';
+    oss << (castling.empty() ? "-" : castling);
+
+    // En passant square
+    if (enPassantSquare >= 64) {
+        oss << " -";
+    } else {
+        oss << " " << static_cast<char>('a' + fileOf(enPassantSquare))
+                   << static_cast<char>('1' + rankOf(enPassantSquare));
+    }
+
+    // Half-move clock and full-move number
+    oss << " " << halfMoveClock << " " << fullMoveNumber;
+
+    return oss.str();
 }
 
 bool Board::fromFEN(const std::string& fen) {
-    // Simplified FEN parsing - placeholder
-    setupStartingPosition();
+    std::istringstream iss(fen);
+    std::string piecePlacement, sideStr, castlingStr, enPassantStr;
+    int halfMove = 0, fullMove = 1;
+
+    if (!(iss >> piecePlacement >> sideStr >> castlingStr >> enPassantStr >> halfMove >> fullMove)) {
+        return false;
+    }
+
+    // Clear all bitboards
+    for (auto& bb : pieceBitboards) bb = EMPTY_BOARD;
+
+    // Piece placement: ranks are given top (rank 8) to bottom (rank 1)
+    int file = 0, rank = 7;
+    for (char c : piecePlacement) {
+        if (c == '/') {
+            rank--;
+            file = 0;
+        } else if (c >= '1' && c <= '8') {
+            file += c - '0';
+        } else {
+            Color color = std::isupper(c) ? Color::WHITE : Color::BLACK;
+            PieceType type;
+            switch (std::tolower(c)) {
+                case 'p': type = PieceType::PAWN;   break;
+                case 'n': type = PieceType::KNIGHT; break;
+                case 'b': type = PieceType::BISHOP; break;
+                case 'r': type = PieceType::ROOK;   break;
+                case 'q': type = PieceType::QUEEN;  break;
+                case 'k': type = PieceType::KING;   break;
+                default: return false;
+            }
+            int idx = static_cast<int>(type) + static_cast<int>(color) * 6;
+            pieceBitboards[idx] = setBit(pieceBitboards[idx], makeSquare(file, rank));
+            file++;
+        }
+    }
+
+    sideToMove = (sideStr == "w") ? Color::WHITE : Color::BLACK;
+
+    canCastleKingSide[0]  = castlingStr.find('K') != std::string::npos;
+    canCastleQueenSide[0] = castlingStr.find('Q') != std::string::npos;
+    canCastleKingSide[1]  = castlingStr.find('k') != std::string::npos;
+    canCastleQueenSide[1] = castlingStr.find('q') != std::string::npos;
+
+    if (enPassantStr == "-") {
+        enPassantSquare = 64;
+    } else {
+        enPassantSquare = makeSquare(enPassantStr[0] - 'a', enPassantStr[1] - '1');
+    }
+
+    halfMoveClock  = halfMove;
+    fullMoveNumber = fullMove;
+
+    gameHistory.clear();
+    updateCombinedBitboards();
     return true;
 }
 
-// Helper functions
 int Board::getPieceIndex(PieceType type, Color color) const {
-    int typeIndex = static_cast<int>(type);
-    int colorIndex = static_cast<int>(color);
-    return typeIndex + (colorIndex * 6);
+    return static_cast<int>(type) + static_cast<int>(color) * 6;
 }
 
 void Board::updateCombinedBitboards() {
@@ -342,37 +299,23 @@ void Board::updateCombinedBitboards() {
 }
 
 void Board::updateCastlingRights(const Move& move) {
-    Piece movingPiece = pieceAt(move.to);
-    
-    // If king moves, lose all castling rights for that color
-    if (movingPiece.type == PieceType::KING) {
-        setCastlingRights(sideToMove, true, false);
+    if (pieceAt(move.to).type == PieceType::KING) {
+        setCastlingRights(sideToMove, true,  false);
         setCastlingRights(sideToMove, false, false);
     }
-    
-    // If rook moves from starting position, lose castling rights for that side
     if (move.from == A1 || move.to == A1) setCastlingRights(Color::WHITE, false, false);
-    if (move.from == H1 || move.to == H1) setCastlingRights(Color::WHITE, true, false);
+    if (move.from == H1 || move.to == H1) setCastlingRights(Color::WHITE, true,  false);
     if (move.from == A8 || move.to == A8) setCastlingRights(Color::BLACK, false, false);
-    if (move.from == H8 || move.to == H8) setCastlingRights(Color::BLACK, true, false);
+    if (move.from == H8 || move.to == H8) setCastlingRights(Color::BLACK, true,  false);
 }
 
 void Board::updateEnPassant(const Move& move) {
-    enPassantSquare = 64; // Clear en passant by default
-    
-    Piece movingPiece = pieceAt(move.to);
-    // Check for pawn double move
-    if (movingPiece.type == PieceType::PAWN) {
-        int fromRank = rankOf(move.from);
-        int toRank = rankOf(move.to);
-        
-        if (abs(toRank - fromRank) == 2) {
-            enPassantSquare = (move.from + move.to) / 2;
-        }
-    }
+    enPassantSquare = 64;
+    Piece moved = pieceAt(move.to);
+    if (moved.type == PieceType::PAWN && std::abs(rankOf(move.to) - rankOf(move.from)) == 2)
+        enPassantSquare = (move.from + move.to) / 2;
 }
 
-// Bitboard attack generation functions
 Bitboard Board::getPawnAttacks(Square sq, Color color) const {
     Bitboard attacks = EMPTY_BOARD;
     int file = fileOf(sq);

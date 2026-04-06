@@ -3,6 +3,7 @@
 #include <iostream>
 #include <sstream>
 #include <cctype>
+#include <cstdlib>
 
 UCIEngine::UCIEngine() : isRunning(false) {
     board.setupStartingPosition();
@@ -142,32 +143,51 @@ std::vector<std::string> UCIEngine::split(const std::string& str, char delimiter
 
 Move UCIEngine::parseMove(const std::string& moveStr) {
     if (moveStr.length() < 4) {
-        return Move(); // Invalid move
+        return Move();
     }
-    
-    // Parse from square
+
     int fromFile = moveStr[0] - 'a';
     int fromRank = moveStr[1] - '1';
     Square from = makeSquare(fromFile, fromRank);
-    
-    // Parse to square
+
     int toFile = moveStr[2] - 'a';
     int toRank = moveStr[3] - '1';
     Square to = makeSquare(toFile, toRank);
-    
+
     Move move(from, to);
-    
-    // Handle promotion
+
+    // Promotion
     if (moveStr.length() == 5) {
         char promotionChar = std::tolower(moveStr[4]);
         switch (promotionChar) {
-            case 'q': move.promotion = PieceType::QUEEN; break;
-            case 'r': move.promotion = PieceType::ROOK; break;
+            case 'q': move.promotion = PieceType::QUEEN;  break;
+            case 'r': move.promotion = PieceType::ROOK;   break;
             case 'b': move.promotion = PieceType::BISHOP; break;
             case 'n': move.promotion = PieceType::KNIGHT; break;
         }
     }
-    
+
+    // Set flags from board state so makeMove behaves correctly
+    Piece fromPiece = board.pieceAt(from);
+
+    // Castling: king moves two files
+    if (fromPiece.type == PieceType::KING && std::abs(fileOf(from) - fileOf(to)) == 2) {
+        move.isCastle = true;
+    }
+
+    // En passant: pawn moves diagonally to the en passant square (empty target)
+    if (fromPiece.type == PieceType::PAWN &&
+        to == board.getEnPassantSquare() &&
+        board.pieceAt(to).isEmpty()) {
+        move.isEnPassant = true;
+        move.isCapture   = true;
+    }
+
+    // Regular capture
+    if (!board.pieceAt(to).isEmpty()) {
+        move.isCapture = true;
+    }
+
     return move;
 }
 

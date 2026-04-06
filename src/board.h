@@ -26,10 +26,10 @@ private:
     
     // Game state history for unmake
     struct GameState {
-        Piece capturedPiece;
         bool castlingRights[4]; // [WHITE_KING][WHITE_QUEEN][BLACK_KING][BLACK_QUEEN]
         Square enPassantSquare;
         int halfMoveClock;
+        std::array<Bitboard, 12> pieceBitboards;
         Bitboard whitePieces;
         Bitboard blackPieces;
         Bitboard allPieces;
@@ -49,7 +49,6 @@ public:
     
     // Game state
     Color getSideToMove() const { return sideToMove; }
-    void setSideToMove(Color color) { sideToMove = color; }
     void switchSideToMove() { sideToMove = ~sideToMove; }
     
     // Castling rights
@@ -63,8 +62,6 @@ public:
     // Move counters
     int getHalfMoveClock() const { return halfMoveClock; }
     int getFullMoveNumber() const { return fullMoveNumber; }
-    void setHalfMoveClock(int count) { halfMoveClock = count; }
-    void setFullMoveNumber(int count) { fullMoveNumber = count; }
     
     // Make/unmake moves
     void makeMove(const Move& move);
@@ -86,9 +83,6 @@ public:
     // FEN notation
     std::string toFEN() const;
     bool fromFEN(const std::string& fen);
-    
-    // Display
-    std::string toString() const;
     
 private:
     // Helper functions

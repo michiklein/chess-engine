@@ -3,34 +3,21 @@
 
 #include "search.h"
 
+// Material-only evaluation, used by the tournament to benchmark against the full eval.
 class BaselineEngine : public SearchEngine {
 public:
     BaselineEngine() : SearchEngine() {}
-    
-    // Override the evaluate function to use only material
-    int evaluate(const Board& board) {
+
+protected:
+    int evaluate(const Board& board) override {
         int score = 0;
-        
-        // Check for immediate checkmate (highest priority)
-        if (board.isCheckmate()) {
-            Color sideToMove = board.getSideToMove();
-            return (sideToMove == Color::WHITE) ? -MATE_SCORE : MATE_SCORE;
-        }
-        
-        // Simple material evaluation only (baseline)
         for (Square sq = 0; sq < 64; sq++) {
             const Piece& piece = board.pieceAt(sq);
             if (!piece.isEmpty()) {
-                int pieceValue = getPieceValue(piece.type);
-                
-                if (piece.color == Color::WHITE) {
-                    score += pieceValue;
-                } else {
-                    score -= pieceValue;
-                }
+                int v = getPieceValue(piece.type);
+                score += (piece.color == Color::WHITE) ? v : -v;
             }
         }
-        
         return score;
     }
 };

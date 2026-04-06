@@ -25,10 +25,7 @@ private:
     static void generateQueenMoves(const Board& board, Square sq, std::vector<Move>& moves);
     static void generateKingMoves(const Board& board, Square sq, std::vector<Move>& moves);
     
-    // Helper functions
     static void generateCastlingMoves(const Board& board, std::vector<Move>& moves);
-    static bool isSquareOnBoard(int file, int rank);
-    static bool canMoveTo(const Board& board, Square from, Square to, Color movingColor);
     
     // Bitboard attack generation
     static Bitboard getPawnAttacks(Square sq, Color color);

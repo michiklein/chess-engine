@@ -382,54 +382,29 @@ Bitboard MoveGenerator::getKnightAttacks(Square sq) {
     return attacks;
 }
 
-Bitboard MoveGenerator::getBishopAttacks(Square sq, Bitboard occupied) {
+static Bitboard slidingAttacks(Square sq, Bitboard occupied, const int dirs[4][2]) {
     Bitboard attacks = EMPTY_BOARD;
-    int file = fileOf(sq);
-    int rank = rankOf(sq);
-    
-    // Diagonal directions
-    static const int diagonalDirections[4][2] = {{-1, -1}, {-1, 1}, {1, -1}, {1, 1}};
-    
-    for (const auto& dir : diagonalDirections) {
+    int file = fileOf(sq), rank = rankOf(sq);
+    for (int d = 0; d < 4; d++) {
         for (int i = 1; i < 8; i++) {
-            int newFile = file + i * dir[0];
-            int newRank = rank + i * dir[1];
-            
-            if (newFile < 0 || newFile >= 8 || newRank < 0 || newRank >= 8) break;
-            
-            Square checkSquare = makeSquare(newFile, newRank);
-            attacks = setBit(attacks, checkSquare);
-            
-            if (getBit(occupied, checkSquare)) break; // Blocked
+            int f = file + i * dirs[d][0], r = rank + i * dirs[d][1];
+            if (f < 0 || f >= 8 || r < 0 || r >= 8) break;
+            Square s = makeSquare(f, r);
+            attacks = setBit(attacks, s);
+            if (getBit(occupied, s)) break;
         }
     }
-    
     return attacks;
 }
 
+Bitboard MoveGenerator::getBishopAttacks(Square sq, Bitboard occupied) {
+    static const int dirs[4][2] = {{-1,-1},{-1,1},{1,-1},{1,1}};
+    return slidingAttacks(sq, occupied, dirs);
+}
+
 Bitboard MoveGenerator::getRookAttacks(Square sq, Bitboard occupied) {
-    Bitboard attacks = EMPTY_BOARD;
-    int file = fileOf(sq);
-    int rank = rankOf(sq);
-    
-    // Straight directions
-    static const int straightDirections[4][2] = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
-    
-    for (const auto& dir : straightDirections) {
-        for (int i = 1; i < 8; i++) {
-            int newFile = file + i * dir[0];
-            int newRank = rank + i * dir[1];
-            
-            if (newFile < 0 || newFile >= 8 || newRank < 0 || newRank >= 8) break;
-            
-            Square checkSquare = makeSquare(newFile, newRank);
-            attacks = setBit(attacks, checkSquare);
-            
-            if (getBit(occupied, checkSquare)) break; // Blocked
-        }
-    }
-    
-    return attacks;
+    static const int dirs[4][2] = {{-1,0},{1,0},{0,-1},{0,1}};
+    return slidingAttacks(sq, occupied, dirs);
 }
 
 Bitboard MoveGenerator::getQueenAttacks(Square sq, Bitboard occupied) {
@@ -459,11 +434,3 @@ Bitboard MoveGenerator::getKingAttacks(Square sq) {
     return attacks;
 }
 
-bool MoveGenerator::isSquareOnBoard(int file, int rank) {
-    return file >= 0 && file < 8 && rank >= 0 && rank < 8;
-}
-
-bool MoveGenerator::canMoveTo(const Board& board, Square from, Square to, Color movingColor) {
-    const Piece& target = board.pieceAt(to);
-    return target.isEmpty() || target.color != movingColor;
-}

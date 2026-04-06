@@ -43,7 +43,7 @@ public:
         engine1.setQuietMode(true);
         engine2.setQuietMode(true);
         
-        std::cout << "Engine 1: Enhanced evaluation (material + mobility + center + king safety + hanging pieces)" << std::endl;
+        std::cout << "Engine 1: Full evaluation (material + piece-square tables)" << std::endl;
         std::cout << "Engine 2: Baseline evaluation (material only)" << std::endl;
     }
     

@@ -80,12 +80,19 @@ bool OpeningBook::loadFromFile(const std::string& filename) {
                     continue;
                 }
                 
-                // Skip empty tokens
-                if (token.empty()) {
+                // Skip empty tokens or comments
+                if (token.empty() || token[0] == '{' || token[0] == ';') {
                     continue;
                 }
                 
-                // Add move to current game
+                // Strip trailing annotation symbols (!, ?, +, #) so "Nf3+" -> "Nf3"
+                while (!token.empty() && (token.back() == '!' || token.back() == '?' ||
+                                          token.back() == '+' || token.back() == '#')) {
+                    token.pop_back();
+                }
+                
+                if (token.empty()) continue;
+                
                 currentMoves.push_back(token);
             }
         }
@@ -307,7 +314,17 @@ std::string OpeningBook::moveToAlgebraic(const Move& move, const Board& board) {
         case PieceType::KING: oss << "K"; break;
         default: break; // Pawn - no symbol
     }
-    
+
+    // For pawn captures include the from-file before the 'x'
+    bool isCapture = move.isCapture || move.isEnPassant ||
+                     !board.pieceAt(move.to).isEmpty();
+    if (isCapture && piece.type == PieceType::PAWN) {
+        oss << static_cast<char>('a' + fileOf(move.from));
+    }
+    if (isCapture) {
+        oss << "x";
+    }
+
     // Add destination square
     int toFile = fileOf(move.to);
     int toRank = rankOf(move.to);
