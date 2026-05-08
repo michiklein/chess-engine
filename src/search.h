@@ -4,8 +4,18 @@
 #include "types.h"
 #include "board.h"
 #include "opening_book.h"
+#include <atomic>
+#include <chrono>
 #include <limits>
 #include <vector>
+
+struct TTEntry {
+    uint64_t hash  = 0;
+    int      score = 0;
+    int8_t   depth = -1;
+    int8_t   flag  = 0;  // 0=exact  1=lower bound  2=upper bound
+    Move     bestMove;
+};
 
 struct SearchResult {
     Move bestMove;
@@ -25,6 +35,7 @@ public:
     void setMaxDepth(int depth) { maxDepth = depth; }
     void setTimeLimit(int milliseconds) { timeLimit = milliseconds; }
     void setQuietMode(bool quiet) { quietMode = quiet; }
+    void setStopFlag(std::atomic<bool>* flag) { stopFlag = flag; }
 
     bool loadOpeningBook(const std::string& filename);
 
@@ -35,10 +46,17 @@ protected:
 
 private:
     int maxDepth;
-    int timeLimit;
+    int timeLimit;  // ms; 0 = unlimited
     int nodesSearched;
     int currentDepth;
     bool quietMode;
+    std::chrono::steady_clock::time_point searchStart;
+    std::atomic<bool>* stopFlag{nullptr};
+
+    static constexpr int TT_SIZE = 1 << 20;  // ~1M entries
+    std::vector<TTEntry> tt;
+
+    bool isTimeUp() const;
 
     OpeningBook openingBook;
     bool useOpeningBook;
@@ -47,8 +65,8 @@ private:
     Move killerMoves[32][MAX_KILLER_MOVES];
     int historyTable[64][64];
 
-    int alphaBeta(Board& board, int depth, int alpha, int beta, bool maximizing);
-    int quiescence(Board& board, int alpha, int beta, bool maximizing);
+    int alphaBeta(Board& board, int depth, int alpha, int beta, bool nullMoveAllowed);
+    int quiescence(Board& board, int alpha, int beta);
 
     int getPositionalValue(PieceType type, Square square, Color color);
     void orderMoves(const Board& board, std::vector<Move>& moves);

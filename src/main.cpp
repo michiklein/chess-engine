@@ -3,10 +3,9 @@
 #include <iostream>
 
 int main() {
-    std::cout << "ChessEngine v1.0 - Starting..." << std::endl;
-    
+    // Force unbuffered stdout so UCI GUIs receive each line immediately
+    std::cout << std::unitbuf;
     UCIEngine engine;
     engine.run();
-    
     return 0;
 }

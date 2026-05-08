@@ -3,7 +3,9 @@
 
 #include "board.h"
 #include "search.h"
+#include <atomic>
 #include <string>
+#include <thread>
 #include <vector>
 
 class UCIEngine {
@@ -11,10 +13,13 @@ private:
     Board board;
     SearchEngine search;
     bool isRunning;
+    std::thread searchThread;
+    std::atomic<bool> stopRequested{false};
     
 public:
     UCIEngine();
-    
+    ~UCIEngine();
+
     // Main UCI loop
     void run();
     

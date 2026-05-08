@@ -36,6 +36,12 @@ private:
     };
     std::vector<GameState> gameHistory;
 
+    struct NullMoveState {
+        Square enPassantSquare;
+        int halfMoveClock;
+    };
+    std::vector<NullMoveState> nullMoveHistory;
+
 public:
     Board();
     
@@ -66,6 +72,8 @@ public:
     // Make/unmake moves
     void makeMove(const Move& move);
     void unmakeMove(const Move& move);
+    void makeNullMove();
+    void unmakeNullMove();
     
     // Board evaluation helpers
     bool isSquareAttacked(Square sq, Color attacker) const;
@@ -76,6 +84,7 @@ public:
     
     // Bitboard access
     Bitboard getPieceBitboard(PieceType type, Color color) const;
+    int countAttackedSquares(Color color) const;
     Bitboard getWhitePieces() const { return whitePieces; }
     Bitboard getBlackPieces() const { return blackPieces; }
     Bitboard getAllPieces() const { return allPieces; }

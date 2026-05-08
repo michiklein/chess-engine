@@ -136,6 +136,44 @@ void Board::unmakeMove(const Move& move) {
     if (sideToMove == Color::BLACK) fullMoveNumber--;
 }
 
+void Board::makeNullMove() {
+    nullMoveHistory.push_back({enPassantSquare, halfMoveClock});
+    enPassantSquare = 64;
+    halfMoveClock++;
+    switchSideToMove();
+}
+
+void Board::unmakeNullMove() {
+    if (nullMoveHistory.empty()) return;
+    auto state = nullMoveHistory.back();
+    nullMoveHistory.pop_back();
+    enPassantSquare = state.enPassantSquare;
+    halfMoveClock   = state.halfMoveClock;
+    switchSideToMove();
+}
+
+int Board::countAttackedSquares(Color color) const {
+    int count = 0;
+    Bitboard pieces;
+
+    pieces = getPieceBitboard(PieceType::PAWN, color);
+    while (pieces) { Square sq = firstSquare(pieces); pieces &= pieces-1; count += popCount(getPawnAttacks(sq, color)); }
+
+    pieces = getPieceBitboard(PieceType::KNIGHT, color);
+    while (pieces) { Square sq = firstSquare(pieces); pieces &= pieces-1; count += popCount(getKnightAttacks(sq)); }
+
+    pieces = getPieceBitboard(PieceType::BISHOP, color);
+    while (pieces) { Square sq = firstSquare(pieces); pieces &= pieces-1; count += popCount(getBishopAttacks(sq, allPieces)); }
+
+    pieces = getPieceBitboard(PieceType::ROOK, color);
+    while (pieces) { Square sq = firstSquare(pieces); pieces &= pieces-1; count += popCount(getRookAttacks(sq, allPieces)); }
+
+    pieces = getPieceBitboard(PieceType::QUEEN, color);
+    while (pieces) { Square sq = firstSquare(pieces); pieces &= pieces-1; count += popCount(getQueenAttacks(sq, allPieces)); }
+
+    return count;
+}
+
 bool Board::isInCheck(Color color) const {
     Square kingSquare = findKing(color);
     return kingSquare < 64 && isSquareAttacked(kingSquare, ~color);

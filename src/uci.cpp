@@ -1,5 +1,6 @@
 #include "uci.h"
 #include "movegen.h"
+#include <algorithm>
 #include <iostream>
 #include <sstream>
 #include <cctype>
@@ -7,13 +8,13 @@
 
 UCIEngine::UCIEngine() : isRunning(false) {
     board.setupStartingPosition();
-    
-    // Load opening book
-    if (search.loadOpeningBook("src/eco.pgn")) {
-        std::cout << "Opening book loaded successfully" << std::endl;
-    } else {
-        std::cout << "Warning: Could not load opening book" << std::endl;
-    }
+    search.setQuietMode(true);
+    search.loadOpeningBook("src/eco.pgn");
+}
+
+UCIEngine::~UCIEngine() {
+    stopRequested = true;
+    if (searchThread.joinable()) searchThread.join();
 }
 
 void UCIEngine::run() {
@@ -105,25 +106,60 @@ void UCIEngine::handlePosition(const std::vector<std::string>& tokens) {
 }
 
 void UCIEngine::handleGo(const std::vector<std::string>& tokens) {
-    int depth = 4; // Default depth
-    
-    // Parse go command parameters
+    int depth     = 0;
+    int movetime  = 0;
+    int wtime = 0, btime = 0, winc = 0, binc = 0, movestogo = 30;
+    bool infinite = false;
+
     for (size_t i = 1; i < tokens.size(); i++) {
-        if (tokens[i] == "depth" && i + 1 < tokens.size()) {
-            depth = std::stoi(tokens[i + 1]);
-        }
+        auto intArg = [&]{ return (i + 1 < tokens.size()) ? std::stoi(tokens[i + 1]) : 0; };
+        if      (tokens[i] == "depth")     depth     = intArg();
+        else if (tokens[i] == "movetime")  movetime  = intArg();
+        else if (tokens[i] == "wtime")     wtime     = intArg();
+        else if (tokens[i] == "btime")     btime     = intArg();
+        else if (tokens[i] == "winc")      winc      = intArg();
+        else if (tokens[i] == "binc")      binc      = intArg();
+        else if (tokens[i] == "movestogo") movestogo = intArg();
+        else if (tokens[i] == "infinite")  infinite  = true;
     }
-    
-    SearchResult result = search.search(board, depth);
-    sendInfo(result);
-    sendBestMove(result.bestMove);
+
+    int timeLimitMs = 0;
+    if (movetime > 0) {
+        timeLimitMs = movetime;
+    } else if (!infinite && (wtime > 0 || btime > 0)) {
+        int myTime = (board.getSideToMove() == Color::WHITE) ? wtime : btime;
+        int myInc  = (board.getSideToMove() == Color::WHITE) ? winc  : binc;
+        timeLimitMs = myTime / movestogo + myInc / 2;
+        timeLimitMs = std::max(timeLimitMs, 50);
+        timeLimitMs = std::min(timeLimitMs, myTime / 2);
+    }
+
+    // Stop any in-progress search before starting a new one
+    stopRequested = true;
+    if (searchThread.joinable()) searchThread.join();
+    stopRequested = false;
+
+    search.setTimeLimit(timeLimitMs);
+    search.setStopFlag(&stopRequested);
+
+    int searchDepth = (depth > 0) ? depth : 64;
+    Board boardCopy = board;  // snapshot so position commands don't race
+
+    searchThread = std::thread([this, boardCopy, searchDepth]() mutable {
+        SearchResult result = search.search(boardCopy, searchDepth);
+        sendInfo(result);
+        sendBestMove(result.bestMove);
+    });
 }
 
 void UCIEngine::handleStop() {
-    // Stop search (placeholder)
+    stopRequested = true;
+    if (searchThread.joinable()) searchThread.join();
 }
 
 void UCIEngine::handleQuit() {
+    stopRequested = true;
+    if (searchThread.joinable()) searchThread.join();
     isRunning = false;
 }
 
