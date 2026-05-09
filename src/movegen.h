@@ -16,6 +16,14 @@ public:
     // Check if a move is legal
     static bool isLegalMove(const Board& board, const Move& move);
 
+    // Bitboard attack generation (shared by Board and move generation)
+    static Bitboard getPawnAttacks(Square sq, Color color);
+    static Bitboard getKnightAttacks(Square sq);
+    static Bitboard getBishopAttacks(Square sq, Bitboard occupied);
+    static Bitboard getRookAttacks(Square sq, Bitboard occupied);
+    static Bitboard getQueenAttacks(Square sq, Bitboard occupied);
+    static Bitboard getKingAttacks(Square sq);
+
 private:
     // Generate moves for specific piece types using bitboards
     static void generatePawnMoves(const Board& board, Square sq, std::vector<Move>& moves);
@@ -27,13 +35,6 @@ private:
     
     static void generateCastlingMoves(const Board& board, std::vector<Move>& moves);
     
-    // Bitboard attack generation
-    static Bitboard getPawnAttacks(Square sq, Color color);
-    static Bitboard getKnightAttacks(Square sq);
-    static Bitboard getBishopAttacks(Square sq, Bitboard occupied);
-    static Bitboard getRookAttacks(Square sq, Bitboard occupied);
-    static Bitboard getQueenAttacks(Square sq, Bitboard occupied);
-    static Bitboard getKingAttacks(Square sq);
 };
 
 #endif // MOVEGEN_H
