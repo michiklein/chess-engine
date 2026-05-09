@@ -157,19 +157,19 @@ int Board::countAttackedSquares(Color color) const {
     Bitboard pieces;
 
     pieces = getPieceBitboard(PieceType::PAWN, color);
-    while (pieces) { Square sq = firstSquare(pieces); pieces &= pieces-1; count += popCount(getPawnAttacks(sq, color)); }
+    while (pieces) { Square sq = firstSquare(pieces); pieces &= pieces-1; count += popCount(MoveGenerator::getPawnAttacks(sq, color)); }
 
     pieces = getPieceBitboard(PieceType::KNIGHT, color);
-    while (pieces) { Square sq = firstSquare(pieces); pieces &= pieces-1; count += popCount(getKnightAttacks(sq)); }
+    while (pieces) { Square sq = firstSquare(pieces); pieces &= pieces-1; count += popCount(MoveGenerator::getKnightAttacks(sq)); }
 
     pieces = getPieceBitboard(PieceType::BISHOP, color);
-    while (pieces) { Square sq = firstSquare(pieces); pieces &= pieces-1; count += popCount(getBishopAttacks(sq, allPieces)); }
+    while (pieces) { Square sq = firstSquare(pieces); pieces &= pieces-1; count += popCount(MoveGenerator::getBishopAttacks(sq, allPieces)); }
 
     pieces = getPieceBitboard(PieceType::ROOK, color);
-    while (pieces) { Square sq = firstSquare(pieces); pieces &= pieces-1; count += popCount(getRookAttacks(sq, allPieces)); }
+    while (pieces) { Square sq = firstSquare(pieces); pieces &= pieces-1; count += popCount(MoveGenerator::getRookAttacks(sq, allPieces)); }
 
     pieces = getPieceBitboard(PieceType::QUEEN, color);
-    while (pieces) { Square sq = firstSquare(pieces); pieces &= pieces-1; count += popCount(getQueenAttacks(sq, allPieces)); }
+    while (pieces) { Square sq = firstSquare(pieces); pieces &= pieces-1; count += popCount(MoveGenerator::getQueenAttacks(sq, allPieces)); }
 
     return count;
 }
@@ -193,14 +193,14 @@ Square Board::findKing(Color color) const {
 }
 
 bool Board::isSquareAttacked(Square sq, Color attacker) const {
-    if (getPawnAttacks(sq, attacker)   & getPieceBitboard(PieceType::PAWN,   attacker)) return true;
-    if (getKnightAttacks(sq)           & getPieceBitboard(PieceType::KNIGHT, attacker)) return true;
-    if (getKingAttacks(sq)             & getPieceBitboard(PieceType::KING,   attacker)) return true;
+    if (MoveGenerator::getPawnAttacks(sq, attacker)   & getPieceBitboard(PieceType::PAWN,   attacker)) return true;
+    if (MoveGenerator::getKnightAttacks(sq)           & getPieceBitboard(PieceType::KNIGHT, attacker)) return true;
+    if (MoveGenerator::getKingAttacks(sq)             & getPieceBitboard(PieceType::KING,   attacker)) return true;
 
-    Bitboard diag = getBishopAttacks(sq, allPieces);
+    Bitboard diag = MoveGenerator::getBishopAttacks(sq, allPieces);
     if (diag & (getPieceBitboard(PieceType::BISHOP, attacker) | getPieceBitboard(PieceType::QUEEN, attacker))) return true;
 
-    Bitboard straight = getRookAttacks(sq, allPieces);
+    Bitboard straight = MoveGenerator::getRookAttacks(sq, allPieces);
     if (straight & (getPieceBitboard(PieceType::ROOK, attacker) | getPieceBitboard(PieceType::QUEEN, attacker))) return true;
 
     return false;
@@ -354,117 +354,3 @@ void Board::updateEnPassant(const Move& move) {
         enPassantSquare = (move.from + move.to) / 2;
 }
 
-Bitboard Board::getPawnAttacks(Square sq, Color color) const {
-    Bitboard attacks = EMPTY_BOARD;
-    int file = fileOf(sq);
-    int rank = rankOf(sq);
-    
-    if (color == Color::WHITE) {
-        if (file > 0 && rank < 7) attacks = setBit(attacks, makeSquare(file - 1, rank + 1));
-        if (file < 7 && rank < 7) attacks = setBit(attacks, makeSquare(file + 1, rank + 1));
-    } else {
-        if (file > 0 && rank > 0) attacks = setBit(attacks, makeSquare(file - 1, rank - 1));
-        if (file < 7 && rank > 0) attacks = setBit(attacks, makeSquare(file + 1, rank - 1));
-    }
-    
-    return attacks;
-}
-
-Bitboard Board::getKnightAttacks(Square sq) const {
-    Bitboard attacks = EMPTY_BOARD;
-    int file = fileOf(sq);
-    int rank = rankOf(sq);
-    
-    static const int knightMoves[8][2] = {
-        {-2, -1}, {-2, 1}, {-1, -2}, {-1, 2},
-        {1, -2}, {1, 2}, {2, -1}, {2, 1}
-    };
-    
-    for (const auto& delta : knightMoves) {
-        int newFile = file + delta[0];
-        int newRank = rank + delta[1];
-        
-        if (newFile >= 0 && newFile < 8 && newRank >= 0 && newRank < 8) {
-            attacks = setBit(attacks, makeSquare(newFile, newRank));
-        }
-    }
-    
-    return attacks;
-}
-
-Bitboard Board::getBishopAttacks(Square sq, Bitboard occupied) const {
-    Bitboard attacks = EMPTY_BOARD;
-    int file = fileOf(sq);
-    int rank = rankOf(sq);
-    
-    // Diagonal directions
-    static const int diagonalDirections[4][2] = {{-1, -1}, {-1, 1}, {1, -1}, {1, 1}};
-    
-    for (const auto& dir : diagonalDirections) {
-        for (int i = 1; i < 8; i++) {
-            int newFile = file + i * dir[0];
-            int newRank = rank + i * dir[1];
-            
-            if (newFile < 0 || newFile >= 8 || newRank < 0 || newRank >= 8) break;
-            
-            Square checkSquare = makeSquare(newFile, newRank);
-            attacks = setBit(attacks, checkSquare);
-            
-            if (getBit(occupied, checkSquare)) break; // Blocked
-        }
-    }
-    
-    return attacks;
-}
-
-Bitboard Board::getRookAttacks(Square sq, Bitboard occupied) const {
-    Bitboard attacks = EMPTY_BOARD;
-    int file = fileOf(sq);
-    int rank = rankOf(sq);
-    
-    // Straight directions
-    static const int straightDirections[4][2] = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
-    
-    for (const auto& dir : straightDirections) {
-        for (int i = 1; i < 8; i++) {
-            int newFile = file + i * dir[0];
-            int newRank = rank + i * dir[1];
-            
-            if (newFile < 0 || newFile >= 8 || newRank < 0 || newRank >= 8) break;
-            
-            Square checkSquare = makeSquare(newFile, newRank);
-            attacks = setBit(attacks, checkSquare);
-            
-            if (getBit(occupied, checkSquare)) break; // Blocked
-        }
-    }
-    
-    return attacks;
-}
-
-Bitboard Board::getQueenAttacks(Square sq, Bitboard occupied) const {
-    return getBishopAttacks(sq, occupied) | getRookAttacks(sq, occupied);
-}
-
-Bitboard Board::getKingAttacks(Square sq) const {
-    Bitboard attacks = EMPTY_BOARD;
-    int file = fileOf(sq);
-    int rank = rankOf(sq);
-    
-    static const int kingMoves[8][2] = {
-        {-1, -1}, {-1, 0}, {-1, 1},
-        {0, -1},           {0, 1},
-        {1, -1},  {1, 0},  {1, 1}
-    };
-    
-    for (const auto& delta : kingMoves) {
-        int newFile = file + delta[0];
-        int newRank = rank + delta[1];
-        
-        if (newFile >= 0 && newFile < 8 && newRank >= 0 && newRank < 8) {
-            attacks = setBit(attacks, makeSquare(newFile, newRank));
-        }
-    }
-    
-    return attacks;
-}

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git pull *)",
+      "Bash(rm /Users/michaelklein/Documents/chess-engine/src/terminal_game.cpp)",
+      "Bash(cmake -B build -DCMAKE_BUILD_TYPE=Release -S .)",
+      "Bash(cmake --build build)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
+    ]
+  }
+}

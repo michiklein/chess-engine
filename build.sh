@@ -1,7 +1,9 @@
 #!/bin/bash
 
 # Chess Engine Build Script
-# Builds both the UCI engine and terminal game
+# Builds the UCI engine only and provides a cleanup helper
+
+set -euo pipefail
 
 echo "🏗️  Building Chess Engine..."
 echo "================================"
@@ -16,26 +18,13 @@ cd build
 echo "📋 Configuring build..."
 cmake ..
 
-# Build both executables
+# Build the UCI engine target
 echo "🔨 Building UCI engine..."
 make chess_engine
 
-echo "🎮 Building terminal game..."
-make terminal_game
-
-echo "🏆 Building tournament..."
-make engine_tournament
-
-echo ""
-echo "✅ Build complete!"
+echo "\n✅ Build complete!"
 echo "================================"
-echo "📁 Executables created:"
+echo "📁 Executable created:"
 echo "   • UCI Engine: ./build/chess_engine"
-echo "   • Terminal Game: ./build/terminal_game"
-echo "   • Tournament: ./build/engine_tournament"
-echo ""
-echo "🚀 To run:"
-echo "   • UCI Engine: ./build/chess_engine"
-echo "   • Terminal Game: ./build/terminal_game"
-echo "   • Tournament: ./build/engine_tournament"
+echo "\nTo remove build artifacts use: ./scripts/cleanup.sh"
 echo "================================"

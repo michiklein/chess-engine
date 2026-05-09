@@ -11,7 +11,6 @@ A chess engine written in C++17.
 ## Play
 
 ```bash
-./build/terminal_game   # play in the terminal
 ./build/chess_engine    # UCI engine for chess GUIs
 ```
 
@@ -27,6 +26,4 @@ src/
 ├── search.cpp/h         # alpha-beta search, evaluation
 ├── opening_book.cpp/h   # ECO opening book
 ├── uci.cpp/h            # UCI protocol
-├── terminal_game.cpp    # interactive terminal game
-└── engine_tournament.cpp
 ```

@@ -1,0 +1,4 @@
+/Users/michaelklein/Documents/chess-engine/build-release/CMakeFiles/chess_engine.dir
+/Users/michaelklein/Documents/chess-engine/build-release/CMakeFiles/test.dir
+/Users/michaelklein/Documents/chess-engine/build-release/CMakeFiles/edit_cache.dir
+/Users/michaelklein/Documents/chess-engine/build-release/CMakeFiles/rebuild_cache.dir

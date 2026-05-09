@@ -100,13 +100,9 @@ private:
     void updateCastlingRights(const Move& move);
     void updateEnPassant(const Move& move);
     
-    // Bitboard attack generation
-    Bitboard getPawnAttacks(Square sq, Color color) const;
-    Bitboard getKnightAttacks(Square sq) const;
-    Bitboard getBishopAttacks(Square sq, Bitboard occupied) const;
-    Bitboard getRookAttacks(Square sq, Bitboard occupied) const;
-    Bitboard getQueenAttacks(Square sq, Bitboard occupied) const;
-    Bitboard getKingAttacks(Square sq) const;
+    // Attack generation centralized in MoveGenerator
+    // Use MoveGenerator::getPawnAttacks/getKnightAttacks/getBishopAttacks/
+    // getRookAttacks/getQueenAttacks/getKingAttacks instead
 };
 
 #endif // BOARD_H
