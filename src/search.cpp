@@ -150,7 +150,7 @@ namespace {
 
 SearchEngine::SearchEngine()
     : maxDepth(8), timeLimit(5000), nodesSearched(0), currentDepth(0),
-      useOpeningBook(false), quietMode(false) {
+      useOpeningBook(false), quietMode(false), nodeLimit(0) {
     initZobrist();
     tt.resize(TT_SIZE);
     for (int i = 0; i < 32; i++)
@@ -163,6 +163,7 @@ SearchEngine::SearchEngine()
 
 bool SearchEngine::isTimeUp() const {
     if (stopFlag && stopFlag->load(std::memory_order_relaxed)) return true;
+    if (nodeLimit > 0 && nodesSearched >= nodeLimit) return true;
     if (timeLimit <= 0) return false;
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - searchStart).count();
@@ -227,7 +228,7 @@ SearchResult SearchEngine::search(const Board& board, int depth) {
 
     result.bestMove     = bestMove;
     result.score        = bestScore;
-    result.depth        = depth;
+    result.depth        = currentDepth;
     result.nodesSearched = nodesSearched;
 
     if (!quietMode)

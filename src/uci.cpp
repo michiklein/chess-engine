@@ -107,13 +107,16 @@ void UCIEngine::handlePosition(const std::vector<std::string>& tokens) {
 
 void UCIEngine::handleGo(const std::vector<std::string>& tokens) {
     int depth     = 0;
+    int nodes     = 0;
     int movetime  = 0;
     int wtime = 0, btime = 0, winc = 0, binc = 0, movestogo = 30;
     bool infinite = false;
+    constexpr int MAX_PRACTICAL_DEPTH = 12;
 
     for (size_t i = 1; i < tokens.size(); i++) {
         auto intArg = [&]{ return (i + 1 < tokens.size()) ? std::stoi(tokens[i + 1]) : 0; };
         if      (tokens[i] == "depth")     depth     = intArg();
+        else if (tokens[i] == "nodes")     nodes     = intArg();
         else if (tokens[i] == "movetime")  movetime  = intArg();
         else if (tokens[i] == "wtime")     wtime     = intArg();
         else if (tokens[i] == "btime")     btime     = intArg();
@@ -140,7 +143,15 @@ void UCIEngine::handleGo(const std::vector<std::string>& tokens) {
     stopRequested = false;
 
     search.setTimeLimit(timeLimitMs);
+    search.setNodeLimit(nodes);
     search.setStopFlag(&stopRequested);
+
+    if (depth > MAX_PRACTICAL_DEPTH && timeLimitMs == 0 && nodes == 0 && !infinite) {
+        std::cout << "info string requested depth " << depth
+                  << " capped to " << MAX_PRACTICAL_DEPTH
+                  << " (no time/nodes limit set)" << std::endl;
+        depth = MAX_PRACTICAL_DEPTH;
+    }
 
     int searchDepth = (depth > 0) ? depth : 64;
     Board boardCopy = board;  // snapshot so position commands don't race
