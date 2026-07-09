@@ -10,17 +10,21 @@ UCIEngine::UCIEngine(const std::string& exePath) : isRunning(false) {
     board.setupStartingPosition();
     search.setQuietMode(true);
 
-    // GUIs launch the engine from arbitrary working directories, so probe a
-    // few likely locations for the opening book, including next to the binary.
+    // An eco.pgn on disk overrides the built-in book (lets you experiment
+    // without rebuilding). GUIs launch the engine from arbitrary working
+    // directories, so probe a few likely locations including next to the
+    // binary. Otherwise fall back to the book embedded in the executable.
     std::vector<std::string> candidates = {"src/eco.pgn", "eco.pgn", "../src/eco.pgn"};
-    size_t slash = exePath.find_last_of('/');
+    size_t slash = exePath.find_last_of("/\\");  // handle Windows separators too
     if (slash != std::string::npos) {
         std::string exeDir = exePath.substr(0, slash);
         candidates.push_back(exeDir + "/eco.pgn");
         candidates.push_back(exeDir + "/../src/eco.pgn");
     }
+    bool loaded = false;
     for (const std::string& path : candidates)
-        if (search.loadOpeningBook(path)) break;
+        if (search.loadOpeningBook(path)) { loaded = true; break; }
+    if (!loaded) search.loadEmbeddedOpeningBook();
 }
 
 UCIEngine::~UCIEngine() {

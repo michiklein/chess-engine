@@ -1,4 +1,5 @@
 #include "opening_book.h"
+#include "eco_book.h"
 #include "movegen.h"
 #include <fstream>
 #include <sstream>
@@ -12,7 +13,16 @@ OpeningBook::~OpeningBook() {}
 bool OpeningBook::loadFromFile(const std::string& filename) {
     std::ifstream file(filename);
     if (!file.is_open()) return false;  // caller may probe several paths
+    return parseStream(file, filename);
+}
 
+bool OpeningBook::loadEmbedded() {
+    std::istringstream stream(std::string(
+        reinterpret_cast<const char*>(ECO_BOOK_DATA), ECO_BOOK_SIZE));
+    return parseStream(stream, "embedded");
+}
+
+bool OpeningBook::parseStream(std::istream& file, const std::string& sourceName) {
     std::string line;
     std::string currentEcoCode;
     std::string currentName;
@@ -68,9 +78,8 @@ bool OpeningBook::loadFromFile(const std::string& filename) {
     if (inGame && !currentMoves.empty())
         processGame(currentEcoCode, currentName, currentMoves);
 
-    file.close();
     std::cerr << "Loaded " << book.size() << " positions from opening book ("
-              << filename << ")" << std::endl;
+              << sourceName << ")" << std::endl;
     return !book.empty();
 }
 

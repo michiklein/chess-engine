@@ -42,6 +42,7 @@ public:
     void setStopFlag(std::atomic<bool>* flag) { stopFlag = flag; }
 
     bool loadOpeningBook(const std::string& filename);
+    bool loadEmbeddedOpeningBook();
 
     int getPieceValue(PieceType type);
 

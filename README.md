@@ -8,6 +8,16 @@ A chess engine written in C++17.
 ./build.sh
 ```
 
+The binary is fully self-contained: the ECO opening book is embedded at build
+time (see `scripts/embed_book.py`). An `eco.pgn` placed next to the executable
+overrides the built-in book.
+
+### Windows
+
+```bash
+./scripts/build_windows.sh   # needs mingw-w64; outputs dist/windows/chess_engine.exe
+```
+
 ## Play
 
 ```bash

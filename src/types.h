@@ -74,8 +74,19 @@ constexpr Color operator~(Color c) { return Color(static_cast<uint8_t>(c) ^ stat
 constexpr Bitboard setBit(Bitboard bb, Square sq) { return bb | (1ULL << sq); }
 constexpr Bitboard clearBit(Bitboard bb, Square sq) { return bb & ~(1ULL << sq); }
 constexpr bool getBit(Bitboard bb, Square sq) { return (bb >> sq) & 1; }
+
+#ifdef _MSC_VER
+#include <intrin.h>
+inline int popCount(Bitboard bb) { return static_cast<int>(__popcnt64(bb)); }
+inline Square firstSquare(Bitboard bb) {
+    unsigned long idx;
+    _BitScanForward64(&idx, bb);
+    return static_cast<Square>(idx);
+}
+#else
 constexpr int popCount(Bitboard bb) { return __builtin_popcountll(bb); }
 constexpr Square firstSquare(Bitboard bb) { return __builtin_ctzll(bb); }
+#endif
 
 // Bitboard constants
 constexpr Bitboard EMPTY_BOARD = 0ULL;

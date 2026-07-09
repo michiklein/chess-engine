@@ -19,18 +19,17 @@ set(COMMON_SOURCES
     src/movegen.cpp
     src/search.cpp
     src/opening_book.cpp
+    src/eco_book.cpp
 )
 
 file(GLOB_RECURSE HEADERS "src/*.h")
 
 add_executable(chess_engine src/main.cpp src/uci.cpp ${COMMON_SOURCES} ${HEADERS})
 
-# Keep the opening book next to the binary so it is found regardless of the
-# working directory the engine is launched from
-add_custom_command(TARGET chess_engine POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/eco.pgn
-            $<TARGET_FILE_DIR:chess_engine>/eco.pgn)
+# Static-link the runtime on MinGW so the .exe needs no compiler DLLs
+if(MINGW)
+    target_link_options(chess_engine PRIVATE -static)
+endif()
 
 enable_testing()
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/CMakeLists.txt")

@@ -619,3 +619,8 @@ bool SearchEngine::loadOpeningBook(const std::string& filename) {
     useOpeningBook = openingBook.loadFromFile(filename);
     return useOpeningBook;
 }
+
+bool SearchEngine::loadEmbeddedOpeningBook() {
+    useOpeningBook = openingBook.loadEmbedded();
+    return useOpeningBook;
+}
