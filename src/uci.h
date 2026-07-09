@@ -17,7 +17,8 @@ private:
     std::atomic<bool> stopRequested{false};
     
 public:
-    UCIEngine();
+    // exePath (argv[0]) is used to locate eco.pgn next to the executable
+    explicit UCIEngine(const std::string& exePath = "");
     ~UCIEngine();
 
     // Main UCI loop
@@ -39,6 +40,7 @@ private:
     // Utility functions
     std::vector<std::string> split(const std::string& str, char delimiter = ' ');
     Move parseMove(const std::string& moveStr);
+    bool tryApplyMove(const std::string& moveStr);
     std::string moveToString(const Move& move);
     void sendBestMove(const Move& move);
     void sendInfo(const SearchResult& result);

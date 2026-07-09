@@ -37,7 +37,6 @@ private:
     std::string moveToAlgebraic(const Move& move, const Board& board);
     void addMoveToBook(const std::string& positionKey, const OpeningMove& openingMove);
 
-    bool parsePGNLine(const std::string& line, std::string& ecoCode, std::string& name, std::vector<std::string>& moves);
     void processGame(const std::string& ecoCode, const std::string& name, const std::vector<std::string>& moves);
 };
 

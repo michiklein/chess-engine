@@ -24,23 +24,19 @@ private:
     int halfMoveClock;
     int fullMoveNumber;
     
-    // Game state history for unmake
+    // Game state history for unmake (also pushed for null moves)
     struct GameState {
         bool castlingRights[4]; // [WHITE_KING][WHITE_QUEEN][BLACK_KING][BLACK_QUEEN]
         Square enPassantSquare;
         int halfMoveClock;
+        int fullMoveNumber;
+        Color sideToMove;
         std::array<Bitboard, 12> pieceBitboards;
         Bitboard whitePieces;
         Bitboard blackPieces;
         Bitboard allPieces;
     };
     std::vector<GameState> gameHistory;
-
-    struct NullMoveState {
-        Square enPassantSquare;
-        int halfMoveClock;
-    };
-    std::vector<NullMoveState> nullMoveHistory;
 
 public:
     Board();
@@ -81,6 +77,10 @@ public:
     bool isCheckmate() const;
     bool isStalemate() const;
     Square findKing(Color color) const;
+
+    // Draw detection
+    bool isRepetition() const;      // current position occurred earlier in history
+    bool isDrawByFiftyMoves() const { return halfMoveClock >= 100; }
     
     // Bitboard access
     Bitboard getPieceBitboard(PieceType type, Color color) const;
@@ -96,6 +96,8 @@ public:
 private:
     // Helper functions
     int getPieceIndex(PieceType type, Color color) const;
+    void pushState();
+    void popState();
     void updateCombinedBitboards();
     void updateCastlingRights(const Move& move);
     void updateEnPassant(const Move& move);

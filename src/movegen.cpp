@@ -5,13 +5,18 @@
 std::vector<Move> MoveGenerator::generateLegalMoves(const Board& board) {
     std::vector<Move> pseudoLegalMoves = generatePseudoLegalMoves(board);
     std::vector<Move> legalMoves;
-    
+    legalMoves.reserve(pseudoLegalMoves.size());
+
+    // makeMove/unmakeMove restores the board exactly, so filter on the board
+    // itself instead of copying it (and its whole history) once per move.
+    Board& b = const_cast<Board&>(board);
+    Color side = board.getSideToMove();
     for (const Move& move : pseudoLegalMoves) {
-        if (isLegalMove(board, move)) {
-            legalMoves.push_back(move);
-        }
+        b.makeMove(move);
+        if (!b.isInCheck(side)) legalMoves.push_back(move);
+        b.unmakeMove(move);
     }
-    
+
     return legalMoves;
 }
 
@@ -21,7 +26,6 @@ std::vector<Move> MoveGenerator::generatePseudoLegalMoves(const Board& board) {
     
     // Generate moves for all pieces of the current side using bitboards
     for (int pieceType = 0; pieceType < 6; pieceType++) {
-        int pieceIndex = pieceType + (static_cast<int>(sideToMove) * 6);
         Bitboard pieceBitboard = board.getPieceBitboard(static_cast<PieceType>(pieceType), sideToMove);
         
         // Iterate through all pieces of this type
@@ -61,15 +65,11 @@ std::vector<Move> MoveGenerator::generatePseudoLegalMoves(const Board& board) {
 }
 
 bool MoveGenerator::isLegalMove(const Board& board, const Move& move) {
-    // Make a copy of the board and try the move
-    Board testBoard = board;
-    Color originalSide = board.getSideToMove();
-    testBoard.makeMove(move);
-    
-    // Check if the move leaves the original side's king in check
-    bool isLegal = !testBoard.isInCheck(originalSide);
-    
-    
+    Board& b = const_cast<Board&>(board);
+    Color side = board.getSideToMove();
+    b.makeMove(move);
+    bool isLegal = !b.isInCheck(side);
+    b.unmakeMove(move);
     return isLegal;
 }
 
@@ -307,33 +307,47 @@ void MoveGenerator::generateKingMoves(const Board& board, Square sq, std::vector
 
 void MoveGenerator::generateCastlingMoves(const Board& board, std::vector<Move>& moves) {
     Color color = board.getSideToMove();
-    
+
     if (board.isInCheck(color)) return; // Cannot castle in check
-    
+
+    // Castling rights can be inconsistent with the actual position when set
+    // via FEN, so verify the king and rook are really on their home squares.
+    Square kingSquare = (color == Color::WHITE) ? E1 : E8;
+    Piece king = board.pieceAt(kingSquare);
+    if (king.type != PieceType::KING || king.color != color) return;
+
+    auto rookAt = [&](Square sq) {
+        Piece p = board.pieceAt(sq);
+        return p.type == PieceType::ROOK && p.color == color;
+    };
+
     // King-side castling
     if (board.canCastle(color, true)) {
-        Square kingSquare = (color == Color::WHITE) ? E1 : E8;
+        Square rookHome   = (color == Color::WHITE) ? H1 : H8;
         Square kingTarget = (color == Color::WHITE) ? G1 : G8;
         Square rookTarget = (color == Color::WHITE) ? F1 : F8;
-        
-        // Check if squares are empty and not attacked
-        if (board.pieceAt(rookTarget).isEmpty() && board.pieceAt(kingTarget).isEmpty() &&
+
+        // Squares between king and rook empty, king's path not attacked
+        if (rookAt(rookHome) &&
+            board.pieceAt(rookTarget).isEmpty() && board.pieceAt(kingTarget).isEmpty() &&
             !board.isSquareAttacked(rookTarget, ~color) && !board.isSquareAttacked(kingTarget, ~color)) {
             Move move(kingSquare, kingTarget);
             move.isCastle = true;
             moves.push_back(move);
         }
     }
-    
+
     // Queen-side castling
     if (board.canCastle(color, false)) {
-        Square kingSquare = (color == Color::WHITE) ? E1 : E8;
-        Square kingTarget = (color == Color::WHITE) ? C1 : C8;
-        Square rookTarget = (color == Color::WHITE) ? D1 : D8;
+        Square rookHome    = (color == Color::WHITE) ? A1 : A8;
+        Square kingTarget  = (color == Color::WHITE) ? C1 : C8;
+        Square rookTarget  = (color == Color::WHITE) ? D1 : D8;
         Square extraSquare = (color == Color::WHITE) ? B1 : B8;
-        
-        // Check if squares are empty and not attacked
-        if (board.pieceAt(rookTarget).isEmpty() && board.pieceAt(kingTarget).isEmpty() &&
+
+        // b-file square must be empty but may be attacked (only the king's
+        // path d1/c1 must be safe)
+        if (rookAt(rookHome) &&
+            board.pieceAt(rookTarget).isEmpty() && board.pieceAt(kingTarget).isEmpty() &&
             board.pieceAt(extraSquare).isEmpty() &&
             !board.isSquareAttacked(rookTarget, ~color) && !board.isSquareAttacked(kingTarget, ~color)) {
             Move move(kingSquare, kingTarget);

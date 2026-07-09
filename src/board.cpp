@@ -1,7 +1,9 @@
 #include "board.h"
 #include "movegen.h"
+#include <algorithm>
 #include <sstream>
 #include <cctype>
+#include <cmath>
 
 Board::Board() {
     setupStartingPosition();
@@ -29,6 +31,7 @@ void Board::setupStartingPosition() {
     enPassantSquare = 64;
     halfMoveClock = 0;
     fullMoveNumber = 1;
+    gameHistory.clear();
 
     updateCombinedBitboards();
 }
@@ -74,7 +77,7 @@ void Board::setCastlingRights(Color color, bool kingSide, bool canCastle) {
     }
 }
 
-void Board::makeMove(const Move& move) {
+void Board::pushState() {
     GameState state;
     state.castlingRights[0] = canCastleKingSide[0];
     state.castlingRights[1] = canCastleQueenSide[0];
@@ -82,12 +85,35 @@ void Board::makeMove(const Move& move) {
     state.castlingRights[3] = canCastleQueenSide[1];
     state.enPassantSquare = enPassantSquare;
     state.halfMoveClock = halfMoveClock;
+    state.fullMoveNumber = fullMoveNumber;
+    state.sideToMove = sideToMove;
     state.pieceBitboards = pieceBitboards;
     state.whitePieces = whitePieces;
     state.blackPieces = blackPieces;
     state.allPieces = allPieces;
     gameHistory.push_back(state);
-    
+}
+
+void Board::popState() {
+    const GameState& state = gameHistory.back();
+    canCastleKingSide[0]  = state.castlingRights[0];
+    canCastleQueenSide[0] = state.castlingRights[1];
+    canCastleKingSide[1]  = state.castlingRights[2];
+    canCastleQueenSide[1] = state.castlingRights[3];
+    enPassantSquare = state.enPassantSquare;
+    halfMoveClock   = state.halfMoveClock;
+    fullMoveNumber  = state.fullMoveNumber;
+    sideToMove      = state.sideToMove;
+    pieceBitboards  = state.pieceBitboards;
+    whitePieces     = state.whitePieces;
+    blackPieces     = state.blackPieces;
+    allPieces       = state.allPieces;
+    gameHistory.pop_back();
+}
+
+void Board::makeMove(const Move& move) {
+    pushState();
+
     Piece movingPiece   = pieceAt(move.from);
     bool  isCapture     = !pieceAt(move.to).isEmpty() || move.isEnPassant;
 
@@ -117,39 +143,39 @@ void Board::makeMove(const Move& move) {
 }
 
 void Board::unmakeMove(const Move& move) {
+    (void)move; // full state is restored from history
     if (gameHistory.empty()) return;
-    GameState state = gameHistory.back();
-    gameHistory.pop_back();
-
-    canCastleKingSide[0]  = state.castlingRights[0];
-    canCastleQueenSide[0] = state.castlingRights[1];
-    canCastleKingSide[1]  = state.castlingRights[2];
-    canCastleQueenSide[1] = state.castlingRights[3];
-    enPassantSquare = state.enPassantSquare;
-    halfMoveClock   = state.halfMoveClock;
-    pieceBitboards  = state.pieceBitboards;
-    whitePieces     = state.whitePieces;
-    blackPieces     = state.blackPieces;
-    allPieces       = state.allPieces;
-
-    switchSideToMove();
-    if (sideToMove == Color::BLACK) fullMoveNumber--;
+    popState();
 }
 
 void Board::makeNullMove() {
-    nullMoveHistory.push_back({enPassantSquare, halfMoveClock});
+    pushState();
     enPassantSquare = 64;
     halfMoveClock++;
     switchSideToMove();
 }
 
 void Board::unmakeNullMove() {
-    if (nullMoveHistory.empty()) return;
-    auto state = nullMoveHistory.back();
-    nullMoveHistory.pop_back();
-    enPassantSquare = state.enPassantSquare;
-    halfMoveClock   = state.halfMoveClock;
-    switchSideToMove();
+    if (gameHistory.empty()) return;
+    popState();
+}
+
+bool Board::isRepetition() const {
+    // Positions before the last irreversible move (pawn move / capture) can
+    // never match, so only scan back as far as the half-move clock allows.
+    int limit = std::min<int>(halfMoveClock, static_cast<int>(gameHistory.size()));
+    for (int i = 1; i <= limit; i++) {
+        const GameState& s = gameHistory[gameHistory.size() - i];
+        if (s.sideToMove == sideToMove &&
+            s.pieceBitboards == pieceBitboards &&
+            s.enPassantSquare == enPassantSquare &&
+            s.castlingRights[0] == canCastleKingSide[0] &&
+            s.castlingRights[1] == canCastleQueenSide[0] &&
+            s.castlingRights[2] == canCastleKingSide[1] &&
+            s.castlingRights[3] == canCastleQueenSide[1])
+            return true;
+    }
+    return false;
 }
 
 int Board::countAttackedSquares(Color color) const {
@@ -193,7 +219,9 @@ Square Board::findKing(Color color) const {
 }
 
 bool Board::isSquareAttacked(Square sq, Color attacker) const {
-    if (MoveGenerator::getPawnAttacks(sq, attacker)   & getPieceBitboard(PieceType::PAWN,   attacker)) return true;
+    // A pawn of `attacker` attacks sq iff a pawn of the *defending* color on sq
+    // would attack the attacker's pawn square (pawn attacks are not symmetric).
+    if (MoveGenerator::getPawnAttacks(sq, ~attacker)  & getPieceBitboard(PieceType::PAWN,   attacker)) return true;
     if (MoveGenerator::getKnightAttacks(sq)           & getPieceBitboard(PieceType::KNIGHT, attacker)) return true;
     if (MoveGenerator::getKingAttacks(sq)             & getPieceBitboard(PieceType::KING,   attacker)) return true;
 

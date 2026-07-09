@@ -6,10 +6,21 @@
 #include <cctype>
 #include <cstdlib>
 
-UCIEngine::UCIEngine() : isRunning(false) {
+UCIEngine::UCIEngine(const std::string& exePath) : isRunning(false) {
     board.setupStartingPosition();
     search.setQuietMode(true);
-    search.loadOpeningBook("src/eco.pgn");
+
+    // GUIs launch the engine from arbitrary working directories, so probe a
+    // few likely locations for the opening book, including next to the binary.
+    std::vector<std::string> candidates = {"src/eco.pgn", "eco.pgn", "../src/eco.pgn"};
+    size_t slash = exePath.find_last_of('/');
+    if (slash != std::string::npos) {
+        std::string exeDir = exePath.substr(0, slash);
+        candidates.push_back(exeDir + "/eco.pgn");
+        candidates.push_back(exeDir + "/../src/eco.pgn");
+    }
+    for (const std::string& path : candidates)
+        if (search.loadOpeningBook(path)) break;
 }
 
 UCIEngine::~UCIEngine() {
@@ -63,7 +74,11 @@ void UCIEngine::handleIsReady() {
 }
 
 void UCIEngine::handleNewGame() {
+    // Make sure no search is reading the engine state while we reset it
+    stopRequested = true;
+    if (searchThread.joinable()) searchThread.join();
     board.setupStartingPosition();
+    search.newGame();
 }
 
 void UCIEngine::handlePosition(const std::vector<std::string>& tokens) {
@@ -71,13 +86,12 @@ void UCIEngine::handlePosition(const std::vector<std::string>& tokens) {
     
     if (tokens[1] == "startpos") {
         board.setupStartingPosition();
-        
+
         // Handle moves
         for (size_t i = 2; i < tokens.size(); i++) {
             if (tokens[i] == "moves") {
                 for (size_t j = i + 1; j < tokens.size(); j++) {
-                    Move move = parseMove(tokens[j]);
-                    board.makeMove(move);
+                    if (!tryApplyMove(tokens[j])) break;
                 }
                 break;
             }
@@ -98,11 +112,28 @@ void UCIEngine::handlePosition(const std::vector<std::string>& tokens) {
         // Handle moves after FEN
         if (movesIndex < tokens.size() && tokens[movesIndex] == "moves") {
             for (size_t i = movesIndex + 1; i < tokens.size(); i++) {
-                Move move = parseMove(tokens[i]);
-                board.makeMove(move);
+                if (!tryApplyMove(tokens[i])) break;
             }
         }
     }
+}
+
+// Parses a coordinate move, validates it against the legal moves of the
+// current position, and applies it. An illegal or malformed move is rejected
+// (returns false) so it can't corrupt the board state.
+bool UCIEngine::tryApplyMove(const std::string& moveStr) {
+    Move parsed = parseMove(moveStr);
+    if (parsed.from == parsed.to) return false;
+
+    for (const Move& legal : MoveGenerator::generateLegalMoves(board)) {
+        if (legal.from == parsed.from && legal.to == parsed.to &&
+            legal.promotion == parsed.promotion) {
+            board.makeMove(legal);
+            return true;
+        }
+    }
+    std::cout << "info string ignoring illegal move " << moveStr << std::endl;
+    return false;
 }
 
 void UCIEngine::handleGo(const std::vector<std::string>& tokens) {
@@ -114,7 +145,11 @@ void UCIEngine::handleGo(const std::vector<std::string>& tokens) {
     constexpr int MAX_PRACTICAL_DEPTH = 12;
 
     for (size_t i = 1; i < tokens.size(); i++) {
-        auto intArg = [&]{ return (i + 1 < tokens.size()) ? std::stoi(tokens[i + 1]) : 0; };
+        auto intArg = [&]() -> int {
+            if (i + 1 >= tokens.size()) return 0;
+            try { return std::stoi(tokens[i + 1]); }
+            catch (...) { return 0; }  // malformed number: ignore, don't crash
+        };
         if      (tokens[i] == "depth")     depth     = intArg();
         else if (tokens[i] == "nodes")     nodes     = intArg();
         else if (tokens[i] == "movetime")  movetime  = intArg();
@@ -132,9 +167,13 @@ void UCIEngine::handleGo(const std::vector<std::string>& tokens) {
     } else if (!infinite && (wtime > 0 || btime > 0)) {
         int myTime = (board.getSideToMove() == Color::WHITE) ? wtime : btime;
         int myInc  = (board.getSideToMove() == Color::WHITE) ? winc  : binc;
+        if (movestogo <= 0) movestogo = 30;
         timeLimitMs = myTime / movestogo + myInc / 2;
         timeLimitMs = std::max(timeLimitMs, 50);
         timeLimitMs = std::min(timeLimitMs, myTime / 2);
+        timeLimitMs = std::max(timeLimitMs, 1);  // 0 would mean "no limit"
+    } else if (!infinite && depth == 0 && nodes == 0) {
+        timeLimitMs = 5000;  // bare "go": think for 5 seconds instead of forever
     }
 
     // Stop any in-progress search before starting a new one
@@ -264,7 +303,11 @@ std::string UCIEngine::moveToString(const Move& move) {
 }
 
 void UCIEngine::sendBestMove(const Move& move) {
-    std::cout << "bestmove " << moveToString(move) << std::endl;
+    // No legal move (mate/stalemate): UCI convention is "bestmove 0000"
+    if (move.from == move.to)
+        std::cout << "bestmove 0000" << std::endl;
+    else
+        std::cout << "bestmove " << moveToString(move) << std::endl;
 }
 
 void UCIEngine::sendInfo(const SearchResult& result) {

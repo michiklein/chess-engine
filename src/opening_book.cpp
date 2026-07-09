@@ -3,6 +3,7 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <cctype>
 #include <iostream>
 
 OpeningBook::OpeningBook() : rng(std::random_device{}()) {}
@@ -10,10 +11,7 @@ OpeningBook::~OpeningBook() {}
 
 bool OpeningBook::loadFromFile(const std::string& filename) {
     std::ifstream file(filename);
-    if (!file.is_open()) {
-        std::cerr << "Could not open opening book file: " << filename << std::endl;
-        return false;
-    }
+    if (!file.is_open()) return false;  // caller may probe several paths
 
     std::string line;
     std::string currentEcoCode;
@@ -58,7 +56,7 @@ bool OpeningBook::loadFromFile(const std::string& filename) {
             while (iss >> token) {
                 if (token.back() == '.') continue;
                 if (token == "1-0" || token == "0-1" || token == "1/2-1/2" || token == "*") continue;
-                if (token.empty() || token[0] == '{' || token[0] == ';') continue;
+                if (token.empty() || token[0] == '{' || token[0] == ';' || token[0] == '$') continue;
                 while (!token.empty() && (token.back() == '!' || token.back() == '?' ||
                                           token.back() == '+' || token.back() == '#'))
                     token.pop_back();
@@ -71,8 +69,9 @@ bool OpeningBook::loadFromFile(const std::string& filename) {
         processGame(currentEcoCode, currentName, currentMoves);
 
     file.close();
-    std::cerr << "Loaded " << book.size() << " positions from opening book" << std::endl;
-    return true;
+    std::cerr << "Loaded " << book.size() << " positions from opening book ("
+              << filename << ")" << std::endl;
+    return !book.empty();
 }
 
 void OpeningBook::processGame(const std::string& ecoCode, const std::string& name,
@@ -130,23 +129,17 @@ std::string OpeningBook::positionToKey(const Board& board) {
     return oss.str();
 }
 
+// Resolves a move string (castle, coordinate, or SAN) to one of the position's
+// legal moves, so the returned move always carries correct capture/castle/
+// en-passant flags. Returns a null move (from == to) if it can't be matched.
 Move OpeningBook::parseMove(const std::string& moveStr, const Board& board) {
-    Move move;
+    std::vector<Move> legalMoves = MoveGenerator::generateLegalMoves(board);
 
-    if (moveStr == "O-O" || moveStr == "0-0") {
-        Square kingSquare = (board.getSideToMove() == Color::WHITE) ? E1 : E8;
-        Square kingTarget = (board.getSideToMove() == Color::WHITE) ? G1 : G8;
-        move = Move(kingSquare, kingTarget);
-        move.isCastle = true;
-        return move;
-    }
-
-    if (moveStr == "O-O-O" || moveStr == "0-0-0") {
-        Square kingSquare = (board.getSideToMove() == Color::WHITE) ? E1 : E8;
-        Square kingTarget = (board.getSideToMove() == Color::WHITE) ? C1 : C8;
-        move = Move(kingSquare, kingTarget);
-        move.isCastle = true;
-        return move;
+    if (moveStr == "O-O" || moveStr == "0-0" || moveStr == "O-O-O" || moveStr == "0-0-0") {
+        bool kingSide = (moveStr == "O-O" || moveStr == "0-0");
+        for (const Move& m : legalMoves)
+            if (m.isCastle && (fileOf(m.to) == 6) == kingSide) return m;
+        return Move();
     }
 
     if (moveStr.length() == 4 || moveStr.length() == 5) {
@@ -157,27 +150,45 @@ Move OpeningBook::parseMove(const std::string& moveStr, const Board& board) {
 
         if (fromFile >= 0 && fromFile < 8 && fromRank >= 0 && fromRank < 8 &&
             toFile   >= 0 && toFile   < 8 && toRank   >= 0 && toRank   < 8) {
-            move.from = makeSquare(fromFile, fromRank);
-            move.to   = makeSquare(toFile,   toRank);
+            Square from = makeSquare(fromFile, fromRank);
+            Square to   = makeSquare(toFile,   toRank);
 
+            PieceType promotion = PieceType::NONE;
             if (moveStr.length() == 5) {
-                char p = std::tolower(moveStr[4]);
-                switch (p) {
-                    case 'q': move.promotion = PieceType::QUEEN;  break;
-                    case 'r': move.promotion = PieceType::ROOK;   break;
-                    case 'b': move.promotion = PieceType::BISHOP; break;
-                    case 'n': move.promotion = PieceType::KNIGHT; break;
+                switch (std::tolower(moveStr[4])) {
+                    case 'q': promotion = PieceType::QUEEN;  break;
+                    case 'r': promotion = PieceType::ROOK;   break;
+                    case 'b': promotion = PieceType::BISHOP; break;
+                    case 'n': promotion = PieceType::KNIGHT; break;
                 }
             }
-            return move;
+            for (const Move& m : legalMoves)
+                if (m.from == from && m.to == to && m.promotion == promotion) return m;
+            return Move();
         }
     }
 
-    std::vector<Move> legalMoves = MoveGenerator::generateLegalMoves(board);
+    // SAN matching; normalize "e8=Q" to "e8Q" first
+    std::string san = moveStr;
+    san.erase(std::remove(san.begin(), san.end(), '='), san.end());
+
     for (const Move& m : legalMoves)
-        if (moveToString(m) == moveStr) return m;
+        if (moveToString(m) == san) return m;
     for (const Move& m : legalMoves)
-        if (moveToAlgebraic(m, board) == moveStr) return m;
+        if (moveToAlgebraic(m, board) == san) return m;
+
+    // Disambiguated piece moves (Nbd2, R1a3, Qh4e1): compare against the plain
+    // algebraic form with the from-file/rank hint(s) inserted after the piece.
+    for (const Move& m : legalMoves) {
+        std::string alg = moveToAlgebraic(m, board);
+        if (alg.empty() || !std::isupper(static_cast<unsigned char>(alg[0]))) continue;
+        std::string piece(1, alg[0]);
+        std::string tail = alg.substr(1);
+        std::string f(1, static_cast<char>('a' + fileOf(m.from)));
+        std::string r(1, static_cast<char>('1' + rankOf(m.from)));
+        if (san == piece + f + tail || san == piece + r + tail ||
+            san == piece + f + r + tail) return m;
+    }
 
     return Move();
 }

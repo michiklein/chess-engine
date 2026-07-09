@@ -16,6 +16,12 @@ A chess engine written in C++17.
 
 Moves are entered in algebraic notation: `e4`, `Nf3`, `Bxc5`, `O-O`, or coordinate style: `e2e4`.
 
+## Test
+
+```bash
+cd build && ctest        # perft: validates move generation against known node counts
+```
+
 ## Project Structure
 
 ```
@@ -26,4 +32,6 @@ src/
 ├── search.cpp/h         # alpha-beta search, evaluation
 ├── opening_book.cpp/h   # ECO opening book
 ├── uci.cpp/h            # UCI protocol
+tests/
+├── perft.cpp            # move generation correctness tests
 ```

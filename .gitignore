@@ -48,3 +48,6 @@ Thumbs.db
 /tmp/
 *.tmp
 *.temp
+
+# Match output
+games/

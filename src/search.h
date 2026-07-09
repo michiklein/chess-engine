@@ -32,6 +32,9 @@ public:
 
     SearchResult search(const Board& board, int depth);
 
+    // Reset transposition table and move-ordering heuristics (ucinewgame)
+    void newGame();
+
     void setMaxDepth(int depth) { maxDepth = depth; }
     void setTimeLimit(int milliseconds) { timeLimit = milliseconds; }
     void setNodeLimit(int limit) { nodeLimit = limit; }
@@ -54,6 +57,7 @@ private:
     bool quietMode;
     std::chrono::steady_clock::time_point searchStart;
     std::atomic<bool>* stopFlag{nullptr};
+    mutable bool timeUpFlag{false};  // latched result of the periodic clock check
 
     static constexpr int TT_SIZE = 1 << 20;  // ~1M entries
     std::vector<TTEntry> tt;
@@ -71,13 +75,15 @@ private:
     int quiescence(Board& board, int alpha, int beta);
 
     int getPositionalValue(PieceType type, Square square, Color color);
-    void orderMoves(const Board& board, std::vector<Move>& moves);
+    // ttMove (if valid, i.e. from != to) is ordered first; depth selects the
+    // killer-move slot.
+    void orderMoves(const Board& board, std::vector<Move>& moves,
+                    const Move& ttMove, int depth);
 
     bool isKillerMove(const Move& move, int depth);
     int getHistoryScore(const Move& move);
     void recordKillerMove(const Move& move, int depth);
     void recordHistoryMove(const Move& move, int depth);
-    bool isMoveInOpeningBook(const Board& board, const Move& move);
 };
 
 constexpr int MATE_SCORE = 10000;

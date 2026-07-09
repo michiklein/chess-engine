@@ -31,11 +31,15 @@ namespace {
 
     uint64_t computeHash(const Board& board) {
         uint64_t h = 0;
-        for (Square sq = 0; sq < 64; sq++) {
-            Piece p = board.pieceAt(sq);
-            if (!p.isEmpty()) {
-                int idx = static_cast<int>(p.color) * 6 + static_cast<int>(p.type);
-                h ^= ZOB_PIECES[idx][sq];
+        for (int c = 0; c < 2; c++) {
+            for (int t = 0; t < 6; t++) {
+                Bitboard bb = board.getPieceBitboard(static_cast<PieceType>(t),
+                                                     static_cast<Color>(c));
+                while (bb) {
+                    Square sq = firstSquare(bb);
+                    bb &= bb - 1;
+                    h ^= ZOB_PIECES[c * 6 + t][sq];
+                }
             }
         }
         if (board.getSideToMove() == Color::BLACK) h ^= ZOB_SIDE;
@@ -149,10 +153,15 @@ namespace {
 // ---------------------------------------------------------------------------
 
 SearchEngine::SearchEngine()
-    : maxDepth(8), timeLimit(5000), nodesSearched(0), currentDepth(0),
-      useOpeningBook(false), quietMode(false), nodeLimit(0) {
+    : maxDepth(8), timeLimit(5000), nodeLimit(0), nodesSearched(0),
+      currentDepth(0), quietMode(false), useOpeningBook(false) {
     initZobrist();
     tt.resize(TT_SIZE);
+    newGame();
+}
+
+void SearchEngine::newGame() {
+    for (auto& e : tt) e = TTEntry();
     for (int i = 0; i < 32; i++)
         for (int j = 0; j < MAX_KILLER_MOVES; j++)
             killerMoves[i][j] = Move();
@@ -165,22 +174,21 @@ bool SearchEngine::isTimeUp() const {
     if (stopFlag && stopFlag->load(std::memory_order_relaxed)) return true;
     if (nodeLimit > 0 && nodesSearched >= nodeLimit) return true;
     if (timeLimit <= 0) return false;
+    if (timeUpFlag) return true;
+    // Only consult the clock every 1024 nodes; it is expensive per-node.
+    if ((nodesSearched & 1023) != 0) return false;
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - searchStart).count();
-    return elapsed >= timeLimit;
+    timeUpFlag = elapsed >= timeLimit;
+    return timeUpFlag;
 }
 
 SearchResult SearchEngine::search(const Board& board, int depth) {
     SearchResult result;
     nodesSearched = 0;
-
-    if (useOpeningBook) {
-        Move bookMove = openingBook.getRandomMove(board);
-        if (bookMove.from != bookMove.to || bookMove.from != 0) {
-            result.bestMove = bookMove;
-            return result;
-        }
-    }
+    currentDepth  = 0;
+    timeUpFlag    = false;
+    searchStart   = std::chrono::steady_clock::now();
 
     std::vector<Move> moves = MoveGenerator::generateLegalMoves(board);
     if (moves.empty()) {
@@ -188,15 +196,35 @@ SearchResult SearchEngine::search(const Board& board, int depth) {
         return result;
     }
 
-    Board mutableBoard = board;
-    searchStart = std::chrono::steady_clock::now();
+    // Opening book: pick a random weighted book move, but only play it if it
+    // matches a legal move (the legal move carries the correct flags).
+    if (useOpeningBook) {
+        Move bookMove = openingBook.getRandomMove(board);
+        if (bookMove.from != bookMove.to) {
+            for (const Move& m : moves) {
+                if (m.from == bookMove.from && m.to == bookMove.to &&
+                    m.promotion == bookMove.promotion) {
+                    result.bestMove = m;
+                    return result;
+                }
+            }
+        }
+    }
 
     Move bestMove = moves[0];
     int bestScore = 0;
 
+    if (moves.size() == 1) {
+        result.bestMove = bestMove;
+        return result;
+    }
+
+    Board mutableBoard = board;
+
     for (int d = 1; d <= depth; d++) {
         currentDepth = d;
-        orderMoves(mutableBoard, moves);
+        // Previous iteration's best move is searched first.
+        orderMoves(mutableBoard, moves, bestMove, d);
 
         int alpha = -(MATE_SCORE + 1);
         int beta  =  (MATE_SCORE + 1);
@@ -215,25 +243,29 @@ SearchResult SearchEngine::search(const Board& board, int depth) {
             }
             mutableBoard.unmakeMove(moves[i]);
 
+            if (isTimeUp()) break;  // scores from an aborted search are garbage
+
             if (score > iterBestScore) { iterBestScore = score; iterBest = moves[i]; }
             if (score > alpha) alpha = score;
         }
 
-        if (!isTimeUp() || d == 1) {
+        if ((!isTimeUp() || d == 1) &&
+            iterBestScore != std::numeric_limits<int>::min()) {
             bestMove  = iterBest;
             bestScore = iterBestScore;
         }
         if (isTimeUp()) break;
+        if (!quietMode)
+            std::cout << "info depth " << d << " score cp " << bestScore
+                      << " nodes " << nodesSearched << std::endl;
+        // Forced mate found: deeper search cannot improve it.
+        if (bestScore > MATE_SCORE - 100 || bestScore < -(MATE_SCORE - 100)) break;
     }
 
-    result.bestMove     = bestMove;
-    result.score        = bestScore;
-    result.depth        = currentDepth;
+    result.bestMove      = bestMove;
+    result.score         = bestScore;
+    result.depth         = currentDepth;
     result.nodesSearched = nodesSearched;
-
-    if (!quietMode)
-        std::cout << "info depth " << depth << " score cp " << bestScore
-                  << " nodes " << nodesSearched << std::endl;
 
     return result;
 }
@@ -241,6 +273,16 @@ SearchResult SearchEngine::search(const Board& board, int depth) {
 int SearchEngine::alphaBeta(Board& board, int depth, int alpha, int beta, bool nullMoveAllowed) {
     if (isTimeUp()) return 0;
     nodesSearched++;
+
+    bool inCheck = board.isInCheck(board.getSideToMove());
+
+    // Draw detection: repetition, and fifty-move rule (unless in check, where
+    // the mating side may still deliver mate on this move).
+    if (board.isRepetition()) return DRAW_SCORE;
+    if (board.isDrawByFiftyMoves() && !inCheck) return DRAW_SCORE;
+
+    // Check extension: never drop into quiescence while in check
+    if (inCheck) depth++;
 
     if (depth == 0) return quiescence(board, alpha, beta);
 
@@ -260,8 +302,6 @@ int SearchEngine::alphaBeta(Board& board, int depth, int alpha, int beta, bool n
             if (entry.flag == 2 && entry.score <= alpha) return entry.score;
         }
     }
-
-    bool inCheck = board.isInCheck(board.getSideToMove());
 
     // Null move pruning
     if (nullMoveAllowed && !inCheck && depth >= 3) {
@@ -290,17 +330,7 @@ int SearchEngine::alphaBeta(Board& board, int depth, int alpha, int beta, bool n
     if (moves.empty())
         return inCheck ? -(MATE_SCORE - depth) : DRAW_SCORE;
 
-    // TT best move to front
-    if (hasTTMove) {
-        for (size_t i = 1; i < moves.size(); i++) {
-            if (moves[i].from == ttMove.from && moves[i].to == ttMove.to &&
-                moves[i].promotion == ttMove.promotion) {
-                std::swap(moves[i], moves[0]);
-                break;
-            }
-        }
-    }
-    orderMoves(board, moves);
+    orderMoves(board, moves, hasTTMove ? ttMove : Move(), depth);
 
     int  originalAlpha = alpha;
     Move bestMove      = moves[0];
@@ -346,7 +376,9 @@ int SearchEngine::alphaBeta(Board& board, int depth, int alpha, int beta, bool n
         }
     }
 
-    if (!isTimeUp()) {
+    // Don't store aborted searches, and don't store mate scores: they encode
+    // distance-to-mate relative to this node and are wrong elsewhere.
+    if (!isTimeUp() && bestScore < MATE_SCORE - 100 && bestScore > -(MATE_SCORE - 100)) {
         int8_t flag = (bestScore >= beta) ? 1 : (bestScore <= originalAlpha ? 2 : 0);
         entry = {hash, bestScore, static_cast<int8_t>(depth), flag, bestMove};
     }
@@ -363,6 +395,8 @@ int SearchEngine::quiescence(Board& board, int alpha, int beta) {
     if (standPat >= beta) return beta;
     if (standPat > alpha) alpha = standPat;
 
+    if (isTimeUp()) return alpha;
+
     std::vector<Move> allMoves = MoveGenerator::generateLegalMoves(board);
     std::vector<Move> captures;
     captures.reserve(allMoves.size());
@@ -370,7 +404,7 @@ int SearchEngine::quiescence(Board& board, int alpha, int beta) {
         if (m.isCapture || m.promotion != PieceType::NONE)
             captures.push_back(m);
 
-    orderMoves(board, captures);
+    orderMoves(board, captures, Move(), 0);
 
     for (const Move& move : captures) {
         board.makeMove(move);
@@ -386,14 +420,24 @@ int SearchEngine::quiescence(Board& board, int alpha, int beta) {
 int SearchEngine::evaluate(const Board& board) {
     int score = 0;
 
-    // Material + piece-square tables
-    for (Square sq = 0; sq < 64; sq++) {
-        const Piece& piece = board.pieceAt(sq);
-        if (!piece.isEmpty()) {
-            int value = getPieceValue(piece.type) + getPositionalValue(piece.type, sq, piece.color);
-            score += (piece.color == Color::WHITE) ? value : -value;
+    // Material + piece-square tables (iterate bitboards, not all 64 squares)
+    for (int c = 0; c < 2; c++) {
+        Color color = static_cast<Color>(c);
+        int sign = (color == Color::WHITE) ? 1 : -1;
+        for (int t = 0; t < 6; t++) {
+            PieceType type = static_cast<PieceType>(t);
+            Bitboard bb = board.getPieceBitboard(type, color);
+            while (bb) {
+                Square sq = firstSquare(bb);
+                bb &= bb - 1;
+                score += sign * (getPieceValue(type) + getPositionalValue(type, sq, color));
+            }
         }
     }
+
+    // Bishop pair
+    if (popCount(board.getPieceBitboard(PieceType::BISHOP, Color::WHITE)) >= 2) score += 30;
+    if (popCount(board.getPieceBitboard(PieceType::BISHOP, Color::BLACK)) >= 2) score -= 30;
 
     // Mobility (attacked squares per side)
     score += (board.countAttackedSquares(Color::WHITE) -
@@ -509,28 +553,36 @@ int SearchEngine::getPositionalValue(PieceType type, Square square, Color color)
     }
 }
 
-void SearchEngine::orderMoves(const Board& board, std::vector<Move>& moves) {
-    std::sort(moves.begin(), moves.end(), [&](const Move& a, const Move& b) {
-        if (useOpeningBook) {
-            bool aInBook = isMoveInOpeningBook(board, a);
-            bool bInBook = isMoveInOpeningBook(board, b);
-            if (aInBook != bInBook) return aInBook;
+void SearchEngine::orderMoves(const Board& board, std::vector<Move>& moves,
+                              const Move& ttMove, int depth) {
+    bool hasTTMove = ttMove.from != ttMove.to;
+
+    // Score each move once, then sort by score.
+    std::vector<std::pair<int, Move>> scored;
+    scored.reserve(moves.size());
+    for (const Move& m : moves) {
+        int s;
+        if (hasTTMove && m.from == ttMove.from && m.to == ttMove.to &&
+            m.promotion == ttMove.promotion) {
+            s = 1000000;                                     // hash/PV move first
+        } else if (m.isCapture) {
+            PieceType victim = m.isEnPassant ? PieceType::PAWN
+                                             : board.pieceAt(m.to).type;
+            s = 100000 + getPieceValue(victim) * 10          // MVV-LVA
+                       - getPieceValue(board.pieceAt(m.from).type);
+        } else if (m.promotion != PieceType::NONE) {
+            s = 90000 + getPieceValue(m.promotion);
+        } else if (isKillerMove(m, depth)) {
+            s = 80000;
+        } else {
+            s = std::min(getHistoryScore(m), 79000);
         }
+        scored.emplace_back(s, m);
+    }
 
-        if (a.isCapture != b.isCapture) return a.isCapture;
-
-        if (a.isCapture && b.isCapture) {
-            int aScore = getPieceValue(board.pieceAt(a.to).type) * 10 - getPieceValue(board.pieceAt(a.from).type);
-            int bScore = getPieceValue(board.pieceAt(b.to).type) * 10 - getPieceValue(board.pieceAt(b.from).type);
-            if (aScore != bScore) return aScore > bScore;
-        }
-
-        bool aKiller = isKillerMove(a, currentDepth);
-        bool bKiller = isKillerMove(b, currentDepth);
-        if (aKiller != bKiller) return aKiller;
-
-        return getHistoryScore(a) > getHistoryScore(b);
-    });
+    std::stable_sort(scored.begin(), scored.end(),
+                     [](const auto& a, const auto& b) { return a.first > b.first; });
+    for (size_t i = 0; i < moves.size(); i++) moves[i] = scored[i].second;
 }
 
 bool SearchEngine::isKillerMove(const Move& move, int depth) {
@@ -566,13 +618,4 @@ void SearchEngine::recordHistoryMove(const Move& move, int depth) {
 bool SearchEngine::loadOpeningBook(const std::string& filename) {
     useOpeningBook = openingBook.loadFromFile(filename);
     return useOpeningBook;
-}
-
-bool SearchEngine::isMoveInOpeningBook(const Board& board, const Move& move) {
-    if (!useOpeningBook) return false;
-    for (const auto& bookMove : openingBook.getMoves(board))
-        if (bookMove.move.from == move.from &&
-            bookMove.move.to   == move.to   &&
-            bookMove.move.promotion == move.promotion) return true;
-    return false;
 }
