@@ -39,6 +39,8 @@ public:
     void setTimeLimit(int milliseconds) { timeLimit = milliseconds; }
     void setNodeLimit(int limit) { nodeLimit = limit; }
     void setQuietMode(bool quiet) { quietMode = quiet; }
+    // Disable the book for a search (e.g. "go infinite" = analysis mode)
+    void setBookEnabled(bool enabled) { bookEnabled = enabled; }
     void setStopFlag(std::atomic<bool>* flag) { stopFlag = flag; }
 
     bool loadOpeningBook(const std::string& filename);
@@ -67,6 +69,7 @@ private:
 
     OpeningBook openingBook;
     bool useOpeningBook;
+    bool bookEnabled{true};
 
     static const int MAX_KILLER_MOVES = 2;
     Move killerMoves[32][MAX_KILLER_MOVES];

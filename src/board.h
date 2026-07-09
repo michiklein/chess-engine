@@ -98,6 +98,7 @@ private:
     int getPieceIndex(PieceType type, Color color) const;
     void pushState();
     void popState();
+    void normalizeEnPassant();
     void updateCombinedBitboards();
     void updateCastlingRights(const Move& move);
     void updateEnPassant(const Move& move);

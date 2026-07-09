@@ -138,8 +138,20 @@ void Board::makeMove(const Move& move) {
     halfMoveClock = (movingPiece.type == PieceType::PAWN || isCapture) ? 0 : halfMoveClock + 1;
 
     if (sideToMove == Color::BLACK) fullMoveNumber++;
-    
+
     switchSideToMove();
+    normalizeEnPassant();
+}
+
+// Keep the en passant square only when the side to move can actually capture.
+// A phantom ep square after every double push would make identical positions
+// reached by different move orders (transpositions) hash and key differently,
+// breaking opening book lookups, the TT, and repetition detection.
+void Board::normalizeEnPassant() {
+    if (enPassantSquare >= 64) return;
+    if (!(MoveGenerator::getPawnAttacks(enPassantSquare, ~sideToMove) &
+          getPieceBitboard(PieceType::PAWN, sideToMove)))
+        enPassantSquare = 64;
 }
 
 void Board::unmakeMove(const Move& move) {
@@ -349,6 +361,7 @@ bool Board::fromFEN(const std::string& fen) {
 
     gameHistory.clear();
     updateCombinedBitboards();
+    normalizeEnPassant();  // GUIs often send phantom ep squares in FEN
     return true;
 }
 

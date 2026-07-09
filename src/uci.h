@@ -43,7 +43,6 @@ private:
     bool tryApplyMove(const std::string& moveStr);
     std::string moveToString(const Move& move);
     void sendBestMove(const Move& move);
-    void sendInfo(const SearchResult& result);
 };
 
 #endif // UCI_H

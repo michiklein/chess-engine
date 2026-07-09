@@ -1,7 +1,9 @@
 #include "search.h"
 #include "movegen.h"
 #include <algorithm>
+#include <cstdlib>
 #include <iostream>
+#include <string>
 
 // ---------------------------------------------------------------------------
 // Zobrist hashing (file-local)
@@ -152,6 +154,24 @@ namespace {
 
 // ---------------------------------------------------------------------------
 
+namespace {
+    std::string moveToUci(const Move& move) {
+        std::string s;
+        s += static_cast<char>('a' + fileOf(move.from));
+        s += static_cast<char>('1' + rankOf(move.from));
+        s += static_cast<char>('a' + fileOf(move.to));
+        s += static_cast<char>('1' + rankOf(move.to));
+        switch (move.promotion) {
+            case PieceType::QUEEN:  s += 'q'; break;
+            case PieceType::ROOK:   s += 'r'; break;
+            case PieceType::BISHOP: s += 'b'; break;
+            case PieceType::KNIGHT: s += 'n'; break;
+            default: break;
+        }
+        return s;
+    }
+}
+
 SearchEngine::SearchEngine()
     : maxDepth(8), timeLimit(5000), nodeLimit(0), nodesSearched(0),
       currentDepth(0), quietMode(false), useOpeningBook(false) {
@@ -198,7 +218,7 @@ SearchResult SearchEngine::search(const Board& board, int depth) {
 
     // Opening book: pick a random weighted book move, but only play it if it
     // matches a legal move (the legal move carries the correct flags).
-    if (useOpeningBook) {
+    if (useOpeningBook && bookEnabled) {
         Move bookMove = openingBook.getRandomMove(board);
         if (bookMove.from != bookMove.to) {
             for (const Move& m : moves) {
@@ -255,9 +275,45 @@ SearchResult SearchEngine::search(const Board& board, int depth) {
             bestScore = iterBestScore;
         }
         if (isTimeUp()) break;
-        if (!quietMode)
-            std::cout << "info depth " << d << " score cp " << bestScore
-                      << " nodes " << nodesSearched << std::endl;
+
+        if (!quietMode) {
+            // Principal variation: best root move, then follow TT best moves
+            std::string pv = moveToUci(bestMove);
+            Board pvBoard = board;
+            pvBoard.makeMove(bestMove);
+            for (int len = 1; len < d; len++) {
+                uint64_t h = computeHash(pvBoard);
+                const TTEntry& e = tt[h & (TT_SIZE - 1)];
+                if (e.hash != h) break;
+                bool extended = false;
+                for (const Move& m : MoveGenerator::generateLegalMoves(pvBoard)) {
+                    if (m.from == e.bestMove.from && m.to == e.bestMove.to &&
+                        m.promotion == e.bestMove.promotion) {
+                        pv += " " + moveToUci(m);
+                        pvBoard.makeMove(m);
+                        extended = true;
+                        break;
+                    }
+                }
+                if (!extended) break;
+            }
+
+            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - searchStart).count();
+            long long nps = (ms > 0) ? nodesSearched * 1000LL / ms : 0;
+
+            std::cout << "info depth " << d;
+            if (bestScore > MATE_SCORE - 1000 || bestScore < -(MATE_SCORE - 1000)) {
+                int plies = std::max(1, d - (MATE_SCORE - std::abs(bestScore)));
+                int mateIn = (plies + 1) / 2;
+                std::cout << " score mate " << (bestScore > 0 ? mateIn : -mateIn);
+            } else {
+                std::cout << " score cp " << bestScore;
+            }
+            std::cout << " time " << ms << " nodes " << nodesSearched
+                      << " nps " << nps << " pv " << pv << std::endl;
+        }
+
         // Forced mate found: deeper search cannot improve it.
         if (bestScore > MATE_SCORE - 100 || bestScore < -(MATE_SCORE - 100)) break;
     }

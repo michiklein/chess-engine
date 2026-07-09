@@ -8,7 +8,7 @@
 
 UCIEngine::UCIEngine(const std::string& exePath) : isRunning(false) {
     board.setupStartingPosition();
-    search.setQuietMode(true);
+    search.setQuietMode(false);  // GUIs need the info stream for analysis
 
     // An eco.pgn on disk overrides the built-in book (lets you experiment
     // without rebuilding). GUIs launch the engine from arbitrary working
@@ -188,6 +188,8 @@ void UCIEngine::handleGo(const std::vector<std::string>& tokens) {
     search.setTimeLimit(timeLimitMs);
     search.setNodeLimit(nodes);
     search.setStopFlag(&stopRequested);
+    // Analysis mode: search the position itself, don't answer from the book
+    search.setBookEnabled(!infinite);
 
     if (depth > MAX_PRACTICAL_DEPTH && timeLimitMs == 0 && nodes == 0 && !infinite) {
         std::cout << "info string requested depth " << depth
@@ -199,9 +201,13 @@ void UCIEngine::handleGo(const std::vector<std::string>& tokens) {
     int searchDepth = (depth > 0) ? depth : 64;
     Board boardCopy = board;  // snapshot so position commands don't race
 
-    searchThread = std::thread([this, boardCopy, searchDepth]() mutable {
+    searchThread = std::thread([this, boardCopy, searchDepth, infinite]() mutable {
         SearchResult result = search.search(boardCopy, searchDepth);
-        sendInfo(result);
+        // UCI: in infinite mode bestmove must not be sent until "stop"
+        if (infinite) {
+            while (!stopRequested.load())
+                std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
         sendBestMove(result.bestMove);
     });
 }
@@ -314,9 +320,3 @@ void UCIEngine::sendBestMove(const Move& move) {
         std::cout << "bestmove " << moveToString(move) << std::endl;
 }
 
-void UCIEngine::sendInfo(const SearchResult& result) {
-    std::cout << "info depth " << result.depth 
-              << " score cp " << result.score 
-              << " nodes " << result.nodesSearched 
-              << " pv " << moveToString(result.bestMove) << std::endl;
-}
