@@ -5,7 +5,7 @@ Alternates colors each game, prints a running score, and appends every game
 to a PGN file. Requires python-chess and a stockfish binary on PATH.
 
 Examples:
-    scripts/play_stockfish.py                     # 100 games, full-strength Stockfish
+    scripts/play_stockfish.py                     # 20 games at 1s/move, full-strength Stockfish
     scripts/play_stockfish.py --games 10 --elo 1500
     scripts/play_stockfish.py --skill 3 --movetime 50
 """
@@ -27,8 +27,8 @@ MAX_PLIES = 400  # safety cap; adjudicated as a draw
 
 def main():
     ap = argparse.ArgumentParser(description="Match: chess_engine vs Stockfish")
-    ap.add_argument("--games", type=int, default=100, help="number of games (default 100)")
-    ap.add_argument("--movetime", type=int, default=100, help="ms per move for both engines (default 100)")
+    ap.add_argument("--games", type=int, default=20, help="number of games (default 20)")
+    ap.add_argument("--movetime", type=int, default=1000, help="ms per move for both engines (default 1000)")
     ap.add_argument("--elo", type=int, help="limit Stockfish strength via UCI_Elo (min 1320)")
     ap.add_argument("--skill", type=int, help="Stockfish Skill Level 0-20")
     ap.add_argument("--stockfish", default="stockfish", help="path to stockfish binary")
