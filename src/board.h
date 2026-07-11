@@ -81,6 +81,7 @@ public:
     // Draw detection
     bool isRepetition() const;      // current position occurred earlier in history
     bool isDrawByFiftyMoves() const { return halfMoveClock >= 100; }
+    bool isInsufficientMaterial() const;  // K vs K, KN vs K, KB vs K
     
     // Bitboard access
     Bitboard getPieceBitboard(PieceType type, Color color) const;

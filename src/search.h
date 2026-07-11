@@ -78,7 +78,7 @@ private:
     int alphaBeta(Board& board, int depth, int alpha, int beta, bool nullMoveAllowed);
     int quiescence(Board& board, int alpha, int beta);
 
-    int getPositionalValue(PieceType type, Square square, Color color);
+    int getPositionalValue(PieceType type, Square square, Color color, bool endgame);
     // ttMove (if valid, i.e. from != to) is ordered first; depth selects the
     // killer-move slot.
     void orderMoves(const Board& board, std::vector<Move>& moves,

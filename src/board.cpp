@@ -172,6 +172,19 @@ void Board::unmakeNullMove() {
     popState();
 }
 
+bool Board::isInsufficientMaterial() const {
+    for (Color c : {Color::WHITE, Color::BLACK}) {
+        if (getPieceBitboard(PieceType::PAWN,  c) ||
+            getPieceBitboard(PieceType::ROOK,  c) ||
+            getPieceBitboard(PieceType::QUEEN, c)) return false;
+    }
+    int minors = popCount(getPieceBitboard(PieceType::KNIGHT, Color::WHITE) |
+                          getPieceBitboard(PieceType::BISHOP, Color::WHITE) |
+                          getPieceBitboard(PieceType::KNIGHT, Color::BLACK) |
+                          getPieceBitboard(PieceType::BISHOP, Color::BLACK));
+    return minors <= 1;  // a lone minor piece cannot force mate
+}
+
 bool Board::isRepetition() const {
     // Positions before the last irreversible move (pawn move / capture) can
     // never match, so only scan back as far as the half-move clock allows.

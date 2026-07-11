@@ -67,9 +67,9 @@ namespace {
         return (r > 0) ? ((1ULL << (r * 8)) - 1) : 0ULL;
     }
 
-    // White-relative pawn structure score
-    int evaluatePawnStructure(const Board& board) {
-        int score = 0;
+    // White-relative pawn structure score, split into middlegame and endgame
+    // components (passed pawns are worth much more as material comes off).
+    void evaluatePawnStructure(const Board& board, int& mg, int& eg) {
         Bitboard wp = board.getPieceBitboard(PieceType::PAWN, Color::WHITE);
         Bitboard bp = board.getPieceBitboard(PieceType::PAWN, Color::BLACK);
 
@@ -79,20 +79,21 @@ namespace {
             int bc = popCount(bp & fb);
 
             // Doubled pawns
-            if (wc > 1) score -= 20 * (wc - 1);
-            if (bc > 1) score += 20 * (bc - 1);
+            if (wc > 1) { mg -= 20 * (wc - 1); eg -= 20 * (wc - 1); }
+            if (bc > 1) { mg += 20 * (bc - 1); eg += 20 * (bc - 1); }
 
             // Isolated pawns (no friendly pawn on adjacent files)
             Bitboard adj = 0;
             if (file > 0) adj |= fileBB(file - 1);
             if (file < 7) adj |= fileBB(file + 1);
 
-            if (wc > 0 && !(wp & adj)) score -= 15 * wc;
-            if (bc > 0 && !(bp & adj)) score += 15 * bc;
+            if (wc > 0 && !(wp & adj)) { mg -= 15 * wc; eg -= 15 * wc; }
+            if (bc > 0 && !(bp & adj)) { mg += 15 * bc; eg += 15 * bc; }
         }
 
         // Passed pawns
-        static const int passedBonus[8] = {0, 10, 20, 35, 55, 80, 110, 0};
+        static const int passedMG[8] = {0, 10, 20, 35, 55,  80, 110, 0};
+        static const int passedEG[8] = {0, 20, 35, 60, 95, 140, 200, 0};
 
         Bitboard w = wp;
         while (w) {
@@ -101,7 +102,7 @@ namespace {
             Bitboard adjFiles = fileBB(f);
             if (f > 0) adjFiles |= fileBB(f - 1);
             if (f < 7) adjFiles |= fileBB(f + 1);
-            if (!(bp & adjFiles & ranksAbove(r))) score += passedBonus[r];
+            if (!(bp & adjFiles & ranksAbove(r))) { mg += passedMG[r]; eg += passedEG[r]; }
         }
 
         Bitboard b = bp;
@@ -111,10 +112,33 @@ namespace {
             Bitboard adjFiles = fileBB(f);
             if (f > 0) adjFiles |= fileBB(f - 1);
             if (f < 7) adjFiles |= fileBB(f + 1);
-            if (!(wp & adjFiles & ranksBelow(r))) score -= passedBonus[7 - r];
+            if (!(wp & adjFiles & ranksBelow(r))) { mg -= passedMG[7 - r]; eg -= passedEG[7 - r]; }
         }
+    }
 
-        return score;
+    // Game phase: 24 = all minor/major pieces on the board (middlegame),
+    // 0 = bare kings and pawns (pure endgame).
+    int gamePhase(const Board& board) {
+        int phase = 0;
+        for (Color c : {Color::WHITE, Color::BLACK}) {
+            phase += popCount(board.getPieceBitboard(PieceType::KNIGHT, c));
+            phase += popCount(board.getPieceBitboard(PieceType::BISHOP, c));
+            phase += popCount(board.getPieceBitboard(PieceType::ROOK,   c)) * 2;
+            phase += popCount(board.getPieceBitboard(PieceType::QUEEN,  c)) * 4;
+        }
+        return std::min(phase, 24);
+    }
+
+    // Endgame mop-up: when one side is a rook or more ahead and the defender
+    // has no pawns, reward driving the enemy king to the edge and bringing
+    // our king close so basic mates (KR-K, KQ-K) get converted.
+    int mopUpBonus(Square winnerKing, Square loserKing) {
+        int lf = fileOf(loserKing), lr = rankOf(loserKing);
+        int centerDist = std::max(3 - std::min(lf, 7 - lf), 0) +
+                         std::max(3 - std::min(lr, 7 - lr), 0);
+        int kingDist = std::abs(fileOf(winnerKing) - lf) +
+                       std::abs(rankOf(winnerKing) - lr);
+        return 10 * centerDist + 4 * (14 - kingDist);
     }
 
     // White-relative king safety score
@@ -332,9 +356,9 @@ int SearchEngine::alphaBeta(Board& board, int depth, int alpha, int beta, bool n
 
     bool inCheck = board.isInCheck(board.getSideToMove());
 
-    // Draw detection: repetition, and fifty-move rule (unless in check, where
-    // the mating side may still deliver mate on this move).
-    if (board.isRepetition()) return DRAW_SCORE;
+    // Draw detection: repetition, dead material, and fifty-move rule (unless
+    // in check, where the mating side may still deliver mate on this move).
+    if (board.isRepetition() || board.isInsufficientMaterial()) return DRAW_SCORE;
     if (board.isDrawByFiftyMoves() && !inCheck) return DRAW_SCORE;
 
     // Check extension: never drop into quiescence while in check
@@ -474,9 +498,15 @@ int SearchEngine::quiescence(Board& board, int alpha, int beta) {
 }
 
 int SearchEngine::evaluate(const Board& board) {
-    int score = 0;
+    // Positions where no side can ever mate are dead draws
+    if (board.isInsufficientMaterial()) return 0;
 
-    // Material + piece-square tables (iterate bitboards, not all 64 squares)
+    // Tapered eval: score the position from a middlegame and an endgame
+    // perspective and blend by how much material is left, so e.g. the king
+    // hides behind pawns early but centralizes once the queens come off.
+    int mg = 0, eg = 0;
+    int materialW = 0, materialB = 0;
+
     for (int c = 0; c < 2; c++) {
         Color color = static_cast<Color>(c);
         int sign = (color == Color::WHITE) ? 1 : -1;
@@ -486,26 +516,43 @@ int SearchEngine::evaluate(const Board& board) {
             while (bb) {
                 Square sq = firstSquare(bb);
                 bb &= bb - 1;
-                score += sign * (getPieceValue(type) + getPositionalValue(type, sq, color));
+                int value = getPieceValue(type);
+                mg += sign * (value + getPositionalValue(type, sq, color, false));
+                eg += sign * (value + getPositionalValue(type, sq, color, true));
+                if (type != PieceType::KING)
+                    (color == Color::WHITE ? materialW : materialB) += value;
             }
         }
     }
 
     // Bishop pair
-    if (popCount(board.getPieceBitboard(PieceType::BISHOP, Color::WHITE)) >= 2) score += 30;
-    if (popCount(board.getPieceBitboard(PieceType::BISHOP, Color::BLACK)) >= 2) score -= 30;
+    if (popCount(board.getPieceBitboard(PieceType::BISHOP, Color::WHITE)) >= 2) { mg += 30; eg += 30; }
+    if (popCount(board.getPieceBitboard(PieceType::BISHOP, Color::BLACK)) >= 2) { mg -= 30; eg -= 30; }
 
     // Mobility (attacked squares per side)
-    score += (board.countAttackedSquares(Color::WHITE) -
-              board.countAttackedSquares(Color::BLACK)) * 3;
+    int mobility = (board.countAttackedSquares(Color::WHITE) -
+                    board.countAttackedSquares(Color::BLACK)) * 3;
+    mg += mobility;
+    eg += mobility;
 
     // Pawn structure
-    score += evaluatePawnStructure(board);
+    evaluatePawnStructure(board, mg, eg);
 
-    // King safety
-    score += evaluateKingSafety(board);
+    // King safety matters while there is attacking material; fade it out
+    mg += evaluateKingSafety(board);
 
-    return score;
+    // Mop-up knowledge for converting big material advantages without pawns
+    Square wk = board.findKing(Color::WHITE);
+    Square bk = board.findKing(Color::BLACK);
+    if (wk < 64 && bk < 64) {
+        if (materialW - materialB >= 400 && board.getPieceBitboard(PieceType::PAWN, Color::BLACK) == 0)
+            eg += mopUpBonus(wk, bk);
+        else if (materialB - materialW >= 400 && board.getPieceBitboard(PieceType::PAWN, Color::WHITE) == 0)
+            eg -= mopUpBonus(bk, wk);
+    }
+
+    int phase = gamePhase(board);
+    return (mg * phase + eg * (24 - phase)) / 24;
 }
 
 int SearchEngine::getPieceValue(PieceType type) {
@@ -520,7 +567,7 @@ int SearchEngine::getPieceValue(PieceType type) {
     }
 }
 
-int SearchEngine::getPositionalValue(PieceType type, Square square, Color color) {
+int SearchEngine::getPositionalValue(PieceType type, Square square, Color color, bool endgame) {
     int file = fileOf(square);
     int rank = rankOf(square);
     int tableRank = (color == Color::BLACK) ? (7 - rank) : rank;
@@ -538,7 +585,18 @@ int SearchEngine::getPositionalValue(PieceType type, Square square, Color color)
                 50, 50, 50, 50, 50, 50, 50, 50,
                  0,  0,  0,  0,  0,  0,  0,  0
             };
-            return pawnTable[idx];
+            // Endgame: only advancement matters, and it matters a lot
+            static const int pawnTableEG[64] = {
+                  0,   0,   0,   0,   0,   0,   0,   0,
+                 10,  10,  10,  10,  10,  10,  10,  10,
+                 10,  10,  10,  10,  10,  10,  10,  10,
+                 20,  20,  20,  20,  20,  20,  20,  20,
+                 35,  35,  35,  35,  35,  35,  35,  35,
+                 60,  60,  60,  60,  60,  60,  60,  60,
+                100, 100, 100, 100, 100, 100, 100, 100,
+                  0,   0,   0,   0,   0,   0,   0,   0
+            };
+            return endgame ? pawnTableEG[idx] : pawnTable[idx];
         }
         case PieceType::KNIGHT: {
             static const int knightTable[64] = {
@@ -593,6 +651,7 @@ int SearchEngine::getPositionalValue(PieceType type, Square square, Color color)
             return queenTable[idx];
         }
         case PieceType::KING: {
+            // Middlegame: stay castled behind the pawns
             static const int kingTable[64] = {
                  20, 30, 10,  0,  0, 10, 30, 20,
                  20, 20,  0,  0,  0,  0, 20, 20,
@@ -603,7 +662,18 @@ int SearchEngine::getPositionalValue(PieceType type, Square square, Color color)
                 -30,-40,-40,-50,-50,-40,-40,-30,
                 -30,-40,-40,-50,-50,-40,-40,-30
             };
-            return kingTable[idx];
+            // Endgame: the king is a fighting piece — centralize it
+            static const int kingTableEG[64] = {
+                -50,-40,-30,-20,-20,-30,-40,-50,
+                -30,-20,-10,  0,  0,-10,-20,-30,
+                -30,-10, 20, 30, 30, 20,-10,-30,
+                -30,-10, 30, 40, 40, 30,-10,-30,
+                -30,-10, 30, 40, 40, 30,-10,-30,
+                -30,-10, 20, 30, 30, 20,-10,-30,
+                -30,-30,  0,  0,  0,  0,-30,-30,
+                -50,-30,-30,-30,-30,-30,-30,-50
+            };
+            return endgame ? kingTableEG[idx] : kingTable[idx];
         }
         default: return 0;
     }
