@@ -5,142 +5,209 @@
 #include <cctype>
 #include <cmath>
 
+// ---------------------------------------------------------------------------
+// Zobrist keys (file-local, initialized once at startup)
+// ---------------------------------------------------------------------------
+namespace {
+    uint64_t ZOB_PIECES[12][64];
+    uint64_t ZOB_SIDE;
+    uint64_t ZOB_CASTLE[4];
+    uint64_t ZOB_EP[8];
+
+    struct ZobristInit {
+        ZobristInit() {
+            uint64_t s = 0x9E3779B97F4A7C15ULL;
+            auto rng = [&]() -> uint64_t {  // splitmix64
+                s += 0x9E3779B97F4A7C15ULL;
+                uint64_t z = s;
+                z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+                z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+                return z ^ (z >> 31);
+            };
+            for (auto& pieceKeys : ZOB_PIECES)
+                for (auto& key : pieceKeys) key = rng();
+            ZOB_SIDE = rng();
+            for (auto& key : ZOB_CASTLE) key = rng();
+            for (auto& key : ZOB_EP)     key = rng();
+        }
+    } zobristInit;
+}
+
+// ---------------------------------------------------------------------------
+
 Board::Board() {
     setupStartingPosition();
 }
 
 void Board::setupStartingPosition() {
-    for (auto& bb : pieceBitboards) bb = EMPTY_BOARD;
-
-    pieceBitboards[0] = setBit(setBit(setBit(setBit(setBit(setBit(setBit(setBit(EMPTY_BOARD, A2), B2), C2), D2), E2), F2), G2), H2);
-    pieceBitboards[1] = setBit(setBit(EMPTY_BOARD, B1), G1);
-    pieceBitboards[2] = setBit(setBit(EMPTY_BOARD, C1), F1);
-    pieceBitboards[3] = setBit(setBit(EMPTY_BOARD, A1), H1);
-    pieceBitboards[4] = setBit(EMPTY_BOARD, D1);
-    pieceBitboards[5] = setBit(EMPTY_BOARD, E1);
-    pieceBitboards[6] = setBit(setBit(setBit(setBit(setBit(setBit(setBit(setBit(EMPTY_BOARD, A7), B7), C7), D7), E7), F7), G7), H7);
-    pieceBitboards[7] = setBit(setBit(EMPTY_BOARD, B8), G8);
-    pieceBitboards[8] = setBit(setBit(EMPTY_BOARD, C8), F8);
-    pieceBitboards[9] = setBit(setBit(EMPTY_BOARD, A8), H8);
-    pieceBitboards[10] = setBit(EMPTY_BOARD, D8);
-    pieceBitboards[11] = setBit(EMPTY_BOARD, E8);
-
-    sideToMove = Color::WHITE;
-    canCastleKingSide[0] = canCastleKingSide[1] = true;
-    canCastleQueenSide[0] = canCastleQueenSide[1] = true;
-    enPassantSquare = 64;
-    halfMoveClock = 0;
-    fullMoveNumber = 1;
-    gameHistory.clear();
-
-    updateCombinedBitboards();
+    fromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 }
 
-Piece Board::pieceAt(Square sq) const {
-    for (int i = 0; i < 12; i++) {
-        if (getBit(pieceBitboards[i], sq)) {
-            PieceType type = static_cast<PieceType>(i % 6);
-            Color color = (i < 6) ? Color::WHITE : Color::BLACK;
-            return Piece(type, color);
-        }
-    }
-    return Piece(); // Empty piece
+void Board::addPiece(Square sq, Piece piece) {
+    int idx = getPieceIndex(piece.type, piece.color);
+    Bitboard bit = 1ULL << sq;
+    pieceBitboards[idx] |= bit;
+    (piece.color == Color::WHITE ? whitePieces : blackPieces) |= bit;
+    allPieces |= bit;
+    squares[sq] = piece;
+    hash ^= ZOB_PIECES[idx][sq];
 }
 
-void Board::setPiece(Square sq, const Piece& piece) {
-    clearSquare(sq);
-    if (!piece.isEmpty()) {
-        int index = getPieceIndex(piece.type, piece.color);
-        pieceBitboards[index] = setBit(pieceBitboards[index], sq);
-    }
-    updateCombinedBitboards();
+void Board::removePiece(Square sq) {
+    Piece piece = squares[sq];
+    int idx = getPieceIndex(piece.type, piece.color);
+    Bitboard bit = 1ULL << sq;
+    pieceBitboards[idx] &= ~bit;
+    (piece.color == Color::WHITE ? whitePieces : blackPieces) &= ~bit;
+    allPieces &= ~bit;
+    squares[sq] = Piece();
+    hash ^= ZOB_PIECES[idx][sq];
 }
 
-void Board::clearSquare(Square sq) {
-    for (auto& bb : pieceBitboards) {
-        bb = clearBit(bb, sq);
-    }
-    updateCombinedBitboards();
+uint64_t Board::castlingHash() const {
+    uint64_t h = 0;
+    if (canCastleKingSide[0])  h ^= ZOB_CASTLE[0];
+    if (canCastleQueenSide[0]) h ^= ZOB_CASTLE[1];
+    if (canCastleKingSide[1])  h ^= ZOB_CASTLE[2];
+    if (canCastleQueenSide[1]) h ^= ZOB_CASTLE[3];
+    return h;
 }
 
-bool Board::canCastle(Color color, bool kingSide) const {
-    int colorIndex = static_cast<int>(color);
-    return kingSide ? canCastleKingSide[colorIndex] : canCastleQueenSide[colorIndex];
-}
-
-void Board::setCastlingRights(Color color, bool kingSide, bool canCastle) {
-    int colorIndex = static_cast<int>(color);
-    if (kingSide) {
-        canCastleKingSide[colorIndex] = canCastle;
-    } else {
-        canCastleQueenSide[colorIndex] = canCastle;
-    }
-}
-
-void Board::pushState() {
-    GameState state;
-    state.castlingRights[0] = canCastleKingSide[0];
-    state.castlingRights[1] = canCastleQueenSide[0];
-    state.castlingRights[2] = canCastleKingSide[1];
-    state.castlingRights[3] = canCastleQueenSide[1];
-    state.enPassantSquare = enPassantSquare;
-    state.halfMoveClock = halfMoveClock;
-    state.fullMoveNumber = fullMoveNumber;
-    state.sideToMove = sideToMove;
-    state.pieceBitboards = pieceBitboards;
-    state.whitePieces = whitePieces;
-    state.blackPieces = blackPieces;
-    state.allPieces = allPieces;
-    gameHistory.push_back(state);
-}
-
-void Board::popState() {
-    const GameState& state = gameHistory.back();
-    canCastleKingSide[0]  = state.castlingRights[0];
-    canCastleQueenSide[0] = state.castlingRights[1];
-    canCastleKingSide[1]  = state.castlingRights[2];
-    canCastleQueenSide[1] = state.castlingRights[3];
-    enPassantSquare = state.enPassantSquare;
-    halfMoveClock   = state.halfMoveClock;
-    fullMoveNumber  = state.fullMoveNumber;
-    sideToMove      = state.sideToMove;
-    pieceBitboards  = state.pieceBitboards;
-    whitePieces     = state.whitePieces;
-    blackPieces     = state.blackPieces;
-    allPieces       = state.allPieces;
-    gameHistory.pop_back();
+void Board::recomputeHash() {
+    hash = 0;
+    for (Square sq = 0; sq < 64; sq++)
+        if (!squares[sq].isEmpty())
+            hash ^= ZOB_PIECES[getPieceIndex(squares[sq].type, squares[sq].color)][sq];
+    if (sideToMove == Color::BLACK) hash ^= ZOB_SIDE;
+    hash ^= castlingHash();
+    if (enPassantSquare < 64) hash ^= ZOB_EP[fileOf(enPassantSquare)];
 }
 
 void Board::makeMove(const Move& move) {
-    pushState();
+    Undo u;
+    u.captured       = Piece();
+    u.capturedSquare = 64;
+    u.castleK[0] = canCastleKingSide[0];  u.castleK[1] = canCastleKingSide[1];
+    u.castleQ[0] = canCastleQueenSide[0]; u.castleQ[1] = canCastleQueenSide[1];
+    u.enPassant     = enPassantSquare;
+    u.halfMoveClock = halfMoveClock;
+    u.hash          = hash;
 
-    Piece movingPiece   = pieceAt(move.from);
-    bool  isCapture     = !pieceAt(move.to).isEmpty() || move.isEnPassant;
+    Piece moving = squares[move.from];
 
-    clearSquare(move.from);
-
-    if (move.isCastle) {
-        if      (move.to == G1) { clearSquare(H1); setPiece(F1, Piece(PieceType::ROOK, Color::WHITE)); }
-        else if (move.to == C1) { clearSquare(A1); setPiece(D1, Piece(PieceType::ROOK, Color::WHITE)); }
-        else if (move.to == G8) { clearSquare(H8); setPiece(F8, Piece(PieceType::ROOK, Color::BLACK)); }
-        else if (move.to == C8) { clearSquare(A8); setPiece(D8, Piece(PieceType::ROOK, Color::BLACK)); }
+    // Remove the captured piece (en passant captures beside the target square)
+    if (move.isEnPassant) {
+        Square capSq = (sideToMove == Color::WHITE) ? move.to - 8 : move.to + 8;
+        u.captured = squares[capSq];
+        u.capturedSquare = capSq;
+        removePiece(capSq);
+    } else if (!squares[move.to].isEmpty()) {
+        u.captured = squares[move.to];
+        u.capturedSquare = move.to;
+        removePiece(move.to);
     }
 
-    if (move.isEnPassant)
-        clearSquare(sideToMove == Color::WHITE ? move.to - 8 : move.to + 8);
+    removePiece(move.from);
+    addPiece(move.to, (move.promotion != PieceType::NONE)
+                          ? Piece(move.promotion, moving.color) : moving);
 
-    PieceType finalType = (move.promotion != PieceType::NONE) ? move.promotion : movingPiece.type;
-    setPiece(move.to, Piece(finalType, movingPiece.color));
+    if (move.isCastle) {
+        if      (move.to == G1) { removePiece(H1); addPiece(F1, Piece(PieceType::ROOK, Color::WHITE)); }
+        else if (move.to == C1) { removePiece(A1); addPiece(D1, Piece(PieceType::ROOK, Color::WHITE)); }
+        else if (move.to == G8) { removePiece(H8); addPiece(F8, Piece(PieceType::ROOK, Color::BLACK)); }
+        else if (move.to == C8) { removePiece(A8); addPiece(D8, Piece(PieceType::ROOK, Color::BLACK)); }
+    }
 
-    updateCastlingRights(move);
-    updateEnPassant(move);
+    hash ^= castlingHash();
+    updateCastlingRights(move, moving.type);
+    hash ^= castlingHash();
 
-    halfMoveClock = (movingPiece.type == PieceType::PAWN || isCapture) ? 0 : halfMoveClock + 1;
+    if (enPassantSquare < 64) hash ^= ZOB_EP[fileOf(enPassantSquare)];
+    enPassantSquare = 64;
+    if (moving.type == PieceType::PAWN &&
+        std::abs(rankOf(move.to) - rankOf(move.from)) == 2)
+        enPassantSquare = (move.from + move.to) / 2;
 
+    halfMoveClock = (moving.type == PieceType::PAWN || u.capturedSquare < 64)
+                        ? 0 : halfMoveClock + 1;
     if (sideToMove == Color::BLACK) fullMoveNumber++;
+    sideToMove = ~sideToMove;
+    hash ^= ZOB_SIDE;
 
-    switchSideToMove();
-    normalizeEnPassant();
+    normalizeEnPassant();  // discard the ep square if no capture is possible
+    if (enPassantSquare < 64) hash ^= ZOB_EP[fileOf(enPassantSquare)];
+
+    undoStack.push_back(u);
+}
+
+void Board::unmakeMove(const Move& move) {
+    if (undoStack.empty()) return;
+    const Undo& u = undoStack.back();
+
+    sideToMove = ~sideToMove;
+    if (sideToMove == Color::BLACK) fullMoveNumber--;
+
+    Piece moved = squares[move.to];
+    removePiece(move.to);
+    addPiece(move.from, (move.promotion != PieceType::NONE)
+                            ? Piece(PieceType::PAWN, moved.color) : moved);
+
+    if (move.isCastle) {
+        if      (move.to == G1) { removePiece(F1); addPiece(H1, Piece(PieceType::ROOK, Color::WHITE)); }
+        else if (move.to == C1) { removePiece(D1); addPiece(A1, Piece(PieceType::ROOK, Color::WHITE)); }
+        else if (move.to == G8) { removePiece(F8); addPiece(H8, Piece(PieceType::ROOK, Color::BLACK)); }
+        else if (move.to == C8) { removePiece(D8); addPiece(A8, Piece(PieceType::ROOK, Color::BLACK)); }
+    }
+
+    if (u.capturedSquare < 64) addPiece(u.capturedSquare, u.captured);
+
+    canCastleKingSide[0]  = u.castleK[0];  canCastleKingSide[1]  = u.castleK[1];
+    canCastleQueenSide[0] = u.castleQ[0];  canCastleQueenSide[1] = u.castleQ[1];
+    enPassantSquare = u.enPassant;
+    halfMoveClock   = u.halfMoveClock;
+    hash            = u.hash;
+    undoStack.pop_back();
+}
+
+void Board::makeNullMove() {
+    Undo u;
+    u.captured       = Piece();
+    u.capturedSquare = 64;
+    u.castleK[0] = canCastleKingSide[0];  u.castleK[1] = canCastleKingSide[1];
+    u.castleQ[0] = canCastleQueenSide[0]; u.castleQ[1] = canCastleQueenSide[1];
+    u.enPassant     = enPassantSquare;
+    u.halfMoveClock = halfMoveClock;
+    u.hash          = hash;
+
+    if (enPassantSquare < 64) hash ^= ZOB_EP[fileOf(enPassantSquare)];
+    enPassantSquare = 64;
+    halfMoveClock++;
+    sideToMove = ~sideToMove;
+    hash ^= ZOB_SIDE;
+
+    undoStack.push_back(u);
+}
+
+void Board::unmakeNullMove() {
+    if (undoStack.empty()) return;
+    const Undo& u = undoStack.back();
+    sideToMove      = ~sideToMove;
+    enPassantSquare = u.enPassant;
+    halfMoveClock   = u.halfMoveClock;
+    hash            = u.hash;
+    undoStack.pop_back();
+}
+
+void Board::updateCastlingRights(const Move& move, PieceType movedType) {
+    if (movedType == PieceType::KING) {
+        int i = static_cast<int>(sideToMove);
+        canCastleKingSide[i]  = false;
+        canCastleQueenSide[i] = false;
+    }
+    if (move.from == A1 || move.to == A1) canCastleQueenSide[0] = false;
+    if (move.from == H1 || move.to == H1) canCastleKingSide[0]  = false;
+    if (move.from == A8 || move.to == A8) canCastleQueenSide[1] = false;
+    if (move.from == H8 || move.to == H8) canCastleKingSide[1]  = false;
 }
 
 // Keep the en passant square only when the side to move can actually capture.
@@ -154,22 +221,13 @@ void Board::normalizeEnPassant() {
         enPassantSquare = 64;
 }
 
-void Board::unmakeMove(const Move& move) {
-    (void)move; // full state is restored from history
-    if (gameHistory.empty()) return;
-    popState();
-}
-
-void Board::makeNullMove() {
-    pushState();
-    enPassantSquare = 64;
-    halfMoveClock++;
-    switchSideToMove();
-}
-
-void Board::unmakeNullMove() {
-    if (gameHistory.empty()) return;
-    popState();
+bool Board::isRepetition() const {
+    // Positions before the last irreversible move (pawn move / capture) can
+    // never match, so only scan back as far as the half-move clock allows.
+    int limit = std::min<int>(halfMoveClock, static_cast<int>(undoStack.size()));
+    for (int i = 1; i <= limit; i++)
+        if (undoStack[undoStack.size() - i].hash == hash) return true;
+    return false;
 }
 
 bool Board::isInsufficientMaterial() const {
@@ -183,24 +241,6 @@ bool Board::isInsufficientMaterial() const {
                           getPieceBitboard(PieceType::KNIGHT, Color::BLACK) |
                           getPieceBitboard(PieceType::BISHOP, Color::BLACK));
     return minors <= 1;  // a lone minor piece cannot force mate
-}
-
-bool Board::isRepetition() const {
-    // Positions before the last irreversible move (pawn move / capture) can
-    // never match, so only scan back as far as the half-move clock allows.
-    int limit = std::min<int>(halfMoveClock, static_cast<int>(gameHistory.size()));
-    for (int i = 1; i <= limit; i++) {
-        const GameState& s = gameHistory[gameHistory.size() - i];
-        if (s.sideToMove == sideToMove &&
-            s.pieceBitboards == pieceBitboards &&
-            s.enPassantSquare == enPassantSquare &&
-            s.castlingRights[0] == canCastleKingSide[0] &&
-            s.castlingRights[1] == canCastleQueenSide[0] &&
-            s.castlingRights[2] == canCastleKingSide[1] &&
-            s.castlingRights[3] == canCastleQueenSide[1])
-            return true;
-    }
-    return false;
 }
 
 int Board::countAttackedSquares(Color color) const {
@@ -230,17 +270,9 @@ bool Board::isInCheck(Color color) const {
     return kingSquare < 64 && isSquareAttacked(kingSquare, ~color);
 }
 
-bool Board::isCheckmate() const {
-    return isInCheck(sideToMove) && MoveGenerator::generateLegalMoves(*this).empty();
-}
-
-bool Board::isStalemate() const {
-    return !isInCheck(sideToMove) && MoveGenerator::generateLegalMoves(*this).empty();
-}
-
 Square Board::findKing(Color color) const {
-    int idx = getPieceIndex(PieceType::KING, color);
-    return pieceBitboards[idx] ? firstSquare(pieceBitboards[idx]) : 64;
+    Bitboard king = getPieceBitboard(PieceType::KING, color);
+    return king ? firstSquare(king) : 64;
 }
 
 bool Board::isSquareAttacked(Square sq, Color attacker) const {
@@ -259,65 +291,6 @@ bool Board::isSquareAttacked(Square sq, Color attacker) const {
     return false;
 }
 
-Bitboard Board::getPieceBitboard(PieceType type, Color color) const {
-    return pieceBitboards[getPieceIndex(type, color)];
-}
-
-std::string Board::toFEN() const {
-    std::ostringstream oss;
-
-    // Piece placement (rank 8 down to rank 1)
-    for (int rank = 7; rank >= 0; rank--) {
-        int empty = 0;
-        for (int file = 0; file < 8; file++) {
-            Piece piece = pieceAt(makeSquare(file, rank));
-            if (piece.isEmpty()) {
-                empty++;
-            } else {
-                if (empty > 0) { oss << empty; empty = 0; }
-                char c;
-                switch (piece.type) {
-                    case PieceType::PAWN:   c = 'p'; break;
-                    case PieceType::KNIGHT: c = 'n'; break;
-                    case PieceType::BISHOP: c = 'b'; break;
-                    case PieceType::ROOK:   c = 'r'; break;
-                    case PieceType::QUEEN:  c = 'q'; break;
-                    case PieceType::KING:   c = 'k'; break;
-                    default:                c = '?'; break;
-                }
-                if (piece.color == Color::WHITE) c = std::toupper(c);
-                oss << c;
-            }
-        }
-        if (empty > 0) oss << empty;
-        if (rank > 0) oss << '/';
-    }
-
-    // Side to move
-    oss << (sideToMove == Color::WHITE ? " w " : " b ");
-
-    // Castling rights
-    std::string castling;
-    if (canCastleKingSide[0])  castling += 'K';
-    if (canCastleQueenSide[0]) castling += 'Q';
-    if (canCastleKingSide[1])  castling += 'k';
-    if (canCastleQueenSide[1]) castling += 'q';
-    oss << (castling.empty() ? "-" : castling);
-
-    // En passant square
-    if (enPassantSquare >= 64) {
-        oss << " -";
-    } else {
-        oss << " " << static_cast<char>('a' + fileOf(enPassantSquare))
-                   << static_cast<char>('1' + rankOf(enPassantSquare));
-    }
-
-    // Half-move clock and full-move number
-    oss << " " << halfMoveClock << " " << fullMoveNumber;
-
-    return oss.str();
-}
-
 bool Board::fromFEN(const std::string& fen) {
     std::istringstream iss(fen);
     std::string piecePlacement, sideStr, castlingStr, enPassantStr;
@@ -327,8 +300,10 @@ bool Board::fromFEN(const std::string& fen) {
         return false;
     }
 
-    // Clear all bitboards
     for (auto& bb : pieceBitboards) bb = EMPTY_BOARD;
+    squares.fill(Piece());
+    whitePieces = blackPieces = allPieces = 0;
+    hash = 0;
 
     // Piece placement: ranks are given top (rank 8) to bottom (rank 1)
     int file = 0, rank = 7;
@@ -350,8 +325,7 @@ bool Board::fromFEN(const std::string& fen) {
                 case 'k': type = PieceType::KING;   break;
                 default: return false;
             }
-            int idx = static_cast<int>(type) + static_cast<int>(color) * 6;
-            pieceBitboards[idx] = setBit(pieceBitboards[idx], makeSquare(file, rank));
+            addPiece(makeSquare(file, rank), Piece(type, color));
             file++;
         }
     }
@@ -372,39 +346,8 @@ bool Board::fromFEN(const std::string& fen) {
     halfMoveClock  = halfMove;
     fullMoveNumber = fullMove;
 
-    gameHistory.clear();
-    updateCombinedBitboards();
+    undoStack.clear();
     normalizeEnPassant();  // GUIs often send phantom ep squares in FEN
+    recomputeHash();
     return true;
 }
-
-int Board::getPieceIndex(PieceType type, Color color) const {
-    return static_cast<int>(type) + static_cast<int>(color) * 6;
-}
-
-void Board::updateCombinedBitboards() {
-    whitePieces = pieceBitboards[0] | pieceBitboards[1] | pieceBitboards[2] | 
-                  pieceBitboards[3] | pieceBitboards[4] | pieceBitboards[5];
-    blackPieces = pieceBitboards[6] | pieceBitboards[7] | pieceBitboards[8] | 
-                  pieceBitboards[9] | pieceBitboards[10] | pieceBitboards[11];
-    allPieces = whitePieces | blackPieces;
-}
-
-void Board::updateCastlingRights(const Move& move) {
-    if (pieceAt(move.to).type == PieceType::KING) {
-        setCastlingRights(sideToMove, true,  false);
-        setCastlingRights(sideToMove, false, false);
-    }
-    if (move.from == A1 || move.to == A1) setCastlingRights(Color::WHITE, false, false);
-    if (move.from == H1 || move.to == H1) setCastlingRights(Color::WHITE, true,  false);
-    if (move.from == A8 || move.to == A8) setCastlingRights(Color::BLACK, false, false);
-    if (move.from == H8 || move.to == H8) setCastlingRights(Color::BLACK, true,  false);
-}
-
-void Board::updateEnPassant(const Move& move) {
-    enPassantSquare = 64;
-    Piece moved = pieceAt(move.to);
-    if (moved.type == PieceType::PAWN && std::abs(rankOf(move.to) - rankOf(move.from)) == 2)
-        enPassantSquare = (move.from + move.to) / 2;
-}
-

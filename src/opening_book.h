@@ -30,15 +30,16 @@ public:
     std::string getEcoCode(const Board& board);
 
 private:
-    std::unordered_map<std::string, std::vector<OpeningMove>> book;
+    // Positions are keyed by the board's zobrist hash, so transpositions
+    // (same position via a different move order) share book entries.
+    std::unordered_map<uint64_t, std::vector<OpeningMove>> book;
     std::mt19937 rng;
 
     bool parseStream(std::istream& file, const std::string& sourceName);
-    std::string positionToKey(const Board& board);
     Move parseMove(const std::string& moveStr, const Board& board);
     std::string moveToString(const Move& move);
     std::string moveToAlgebraic(const Move& move, const Board& board);
-    void addMoveToBook(const std::string& positionKey, const OpeningMove& openingMove);
+    void addMoveToBook(uint64_t positionKey, const OpeningMove& openingMove);
 
     void processGame(const std::string& ecoCode, const std::string& name, const std::vector<std::string>& moves);
 };

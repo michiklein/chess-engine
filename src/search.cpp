@@ -5,55 +5,7 @@
 #include <iostream>
 #include <string>
 
-// ---------------------------------------------------------------------------
-// Zobrist hashing (file-local)
-// ---------------------------------------------------------------------------
 namespace {
-    uint64_t ZOB_PIECES[12][64];
-    uint64_t ZOB_SIDE;
-    uint64_t ZOB_CASTLE[4];
-    uint64_t ZOB_EP[8];
-
-    void initZobrist() {
-        uint64_t s = 0x9E3779B97F4A7C15ULL;
-        auto rng = [&]() -> uint64_t {
-            s += 0x9E3779B97F4A7C15ULL;
-            uint64_t z = s;
-            z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
-            z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
-            return z ^ (z >> 31);
-        };
-        for (int p = 0; p < 12; p++)
-            for (int sq = 0; sq < 64; sq++)
-                ZOB_PIECES[p][sq] = rng();
-        ZOB_SIDE = rng();
-        for (int i = 0; i < 4; i++) ZOB_CASTLE[i] = rng();
-        for (int i = 0; i < 8; i++) ZOB_EP[i]     = rng();
-    }
-
-    uint64_t computeHash(const Board& board) {
-        uint64_t h = 0;
-        for (int c = 0; c < 2; c++) {
-            for (int t = 0; t < 6; t++) {
-                Bitboard bb = board.getPieceBitboard(static_cast<PieceType>(t),
-                                                     static_cast<Color>(c));
-                while (bb) {
-                    Square sq = firstSquare(bb);
-                    bb &= bb - 1;
-                    h ^= ZOB_PIECES[c * 6 + t][sq];
-                }
-            }
-        }
-        if (board.getSideToMove() == Color::BLACK) h ^= ZOB_SIDE;
-        if (board.canCastle(Color::WHITE, true))   h ^= ZOB_CASTLE[0];
-        if (board.canCastle(Color::WHITE, false))  h ^= ZOB_CASTLE[1];
-        if (board.canCastle(Color::BLACK, true))   h ^= ZOB_CASTLE[2];
-        if (board.canCastle(Color::BLACK, false))  h ^= ZOB_CASTLE[3];
-        Square ep = board.getEnPassantSquare();
-        if (ep < 64) h ^= ZOB_EP[fileOf(ep)];
-        return h;
-    }
-
     // File mask: all squares on a given file
     constexpr Bitboard fileBB(int file) { return 0x0101010101010101ULL << file; }
 
@@ -199,7 +151,6 @@ namespace {
 SearchEngine::SearchEngine()
     : maxDepth(8), timeLimit(5000), nodeLimit(0), nodesSearched(0),
       currentDepth(0), quietMode(false), useOpeningBook(false) {
-    initZobrist();
     tt.resize(TT_SIZE);
     newGame();
 }
@@ -306,7 +257,7 @@ SearchResult SearchEngine::search(const Board& board, int depth) {
             Board pvBoard = board;
             pvBoard.makeMove(bestMove);
             for (int len = 1; len < d; len++) {
-                uint64_t h = computeHash(pvBoard);
+                uint64_t h = pvBoard.getHash();
                 const TTEntry& e = tt[h & (TT_SIZE - 1)];
                 if (e.hash != h) break;
                 bool extended = false;
@@ -367,7 +318,7 @@ int SearchEngine::alphaBeta(Board& board, int depth, int alpha, int beta, bool n
     if (depth == 0) return quiescence(board, alpha, beta);
 
     // TT probe
-    uint64_t hash  = computeHash(board);
+    uint64_t hash  = board.getHash();
     int      ttIdx = static_cast<int>(hash & (TT_SIZE - 1));
     TTEntry& entry = tt[ttIdx];
     Move ttMove;

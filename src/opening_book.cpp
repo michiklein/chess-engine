@@ -88,7 +88,6 @@ void OpeningBook::processGame(const std::string& ecoCode, const std::string& nam
     if (moves.empty()) return;
 
     Board board;
-    std::string positionKey = positionToKey(board);
 
     for (size_t i = 0; i < moves.size(); i++) {
         Move move = parseMove(moves[i], board);
@@ -100,14 +99,13 @@ void OpeningBook::processGame(const std::string& ecoCode, const std::string& nam
         openingMove.name = name;
         openingMove.frequency = 1;
 
-        addMoveToBook(positionKey, openingMove);
+        addMoveToBook(board.getHash(), openingMove);
 
         board.makeMove(move);
-        positionKey = positionToKey(board);
     }
 }
 
-void OpeningBook::addMoveToBook(const std::string& positionKey, const OpeningMove& openingMove) {
+void OpeningBook::addMoveToBook(uint64_t positionKey, const OpeningMove& openingMove) {
     auto it = book.find(positionKey);
     if (it != book.end()) {
         for (auto& existing : it->second) {
@@ -122,20 +120,6 @@ void OpeningBook::addMoveToBook(const std::string& positionKey, const OpeningMov
     } else {
         book[positionKey] = {openingMove};
     }
-}
-
-std::string OpeningBook::positionToKey(const Board& board) {
-    std::ostringstream oss;
-    for (Square sq = 0; sq < 64; sq++) {
-        Piece piece = board.pieceAt(sq);
-        if (!piece.isEmpty())
-            oss << static_cast<int>(piece.type) << static_cast<int>(piece.color) << sq << '|';
-    }
-    oss << static_cast<int>(board.getSideToMove());
-    oss << board.canCastle(Color::WHITE, true) << board.canCastle(Color::WHITE, false);
-    oss << board.canCastle(Color::BLACK, true) << board.canCastle(Color::BLACK, false);
-    oss << board.getEnPassantSquare();
-    return oss.str();
 }
 
 // Resolves a move string (castle, coordinate, or SAN) to one of the position's
@@ -259,7 +243,7 @@ std::string OpeningBook::moveToAlgebraic(const Move& move, const Board& board) {
 }
 
 Move OpeningBook::getRandomMove(const Board& board) {
-    auto it = book.find(positionToKey(board));
+    auto it = book.find(board.getHash());
     if (it == book.end() || it->second.empty()) return Move();
 
     int totalWeight = 0;
@@ -277,16 +261,16 @@ Move OpeningBook::getRandomMove(const Board& board) {
 }
 
 std::vector<OpeningMove> OpeningBook::getMoves(const Board& board) {
-    auto it = book.find(positionToKey(board));
+    auto it = book.find(board.getHash());
     return (it != book.end()) ? it->second : std::vector<OpeningMove>{};
 }
 
 bool OpeningBook::isInBook(const Board& board) {
-    return book.find(positionToKey(board)) != book.end();
+    return book.find(board.getHash()) != book.end();
 }
 
 std::string OpeningBook::getEcoCode(const Board& board) {
-    auto it = book.find(positionToKey(board));
+    auto it = book.find(board.getHash());
     if (it == book.end() || it->second.empty()) return "";
     return it->second[0].ecoCode;
 }
