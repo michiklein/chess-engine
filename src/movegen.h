@@ -12,9 +12,6 @@ public:
     
     // Generate all pseudo-legal moves (may leave king in check)
     static std::vector<Move> generatePseudoLegalMoves(const Board& board);
-    
-    // Check if a move is legal
-    static bool isLegalMove(const Board& board, const Move& move);
 
     // All pieces of both colors attacking sq, given an occupancy (which may
     // differ from the board's, e.g. during static exchange evaluation)

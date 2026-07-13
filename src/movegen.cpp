@@ -64,15 +64,6 @@ std::vector<Move> MoveGenerator::generatePseudoLegalMoves(const Board& board) {
     return moves;
 }
 
-bool MoveGenerator::isLegalMove(const Board& board, const Move& move) {
-    Board& b = const_cast<Board&>(board);
-    Color side = board.getSideToMove();
-    b.makeMove(move);
-    bool isLegal = !b.isInCheck(side);
-    b.unmakeMove(move);
-    return isLegal;
-}
-
 void MoveGenerator::generatePawnMoves(const Board& board, Square sq, std::vector<Move>& moves) {
     Color color = board.pieceAt(sq).color;
     int file = fileOf(sq);

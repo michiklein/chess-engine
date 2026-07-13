@@ -41,7 +41,6 @@ private:
     std::vector<std::string> split(const std::string& str, char delimiter = ' ');
     Move parseMove(const std::string& moveStr);
     bool tryApplyMove(const std::string& moveStr);
-    std::string moveToString(const Move& move);
     void sendBestMove(const Move& move);
 };
 

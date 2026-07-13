@@ -287,36 +287,11 @@ Move UCIEngine::parseMove(const std::string& moveStr) {
     return move;
 }
 
-std::string UCIEngine::moveToString(const Move& move) {
-    std::string result;
-    
-    // From square
-    result += static_cast<char>('a' + fileOf(move.from));
-    result += static_cast<char>('1' + rankOf(move.from));
-    
-    // To square
-    result += static_cast<char>('a' + fileOf(move.to));
-    result += static_cast<char>('1' + rankOf(move.to));
-    
-    // Promotion
-    if (move.promotion != PieceType::NONE) {
-        switch (move.promotion) {
-            case PieceType::QUEEN:  result += 'q'; break;
-            case PieceType::ROOK:   result += 'r'; break;
-            case PieceType::BISHOP: result += 'b'; break;
-            case PieceType::KNIGHT: result += 'n'; break;
-            default: break;
-        }
-    }
-    
-    return result;
-}
-
 void UCIEngine::sendBestMove(const Move& move) {
     // No legal move (mate/stalemate): UCI convention is "bestmove 0000"
     if (move.from == move.to)
         std::cout << "bestmove 0000" << std::endl;
     else
-        std::cout << "bestmove " << moveToString(move) << std::endl;
+        std::cout << "bestmove " << moveToUci(move) << std::endl;
 }
 

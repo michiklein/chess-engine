@@ -35,7 +35,6 @@ public:
     // Reset transposition table and move-ordering heuristics (ucinewgame)
     void newGame();
 
-    void setMaxDepth(int depth) { maxDepth = depth; }
     void setTimeLimit(int milliseconds) { timeLimit = milliseconds; }
     void setNodeLimit(int limit) { nodeLimit = limit; }
     void setQuietMode(bool quiet) { quietMode = quiet; }
@@ -52,7 +51,6 @@ protected:
     virtual int evaluate(const Board& board);
 
 private:
-    int maxDepth;
     int timeLimit;  // ms; 0 = unlimited
     int nodeLimit;  // node count; 0 = unlimited
     int nodesSearched;

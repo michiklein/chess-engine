@@ -130,26 +130,8 @@ namespace {
 
 // ---------------------------------------------------------------------------
 
-namespace {
-    std::string moveToUci(const Move& move) {
-        std::string s;
-        s += static_cast<char>('a' + fileOf(move.from));
-        s += static_cast<char>('1' + rankOf(move.from));
-        s += static_cast<char>('a' + fileOf(move.to));
-        s += static_cast<char>('1' + rankOf(move.to));
-        switch (move.promotion) {
-            case PieceType::QUEEN:  s += 'q'; break;
-            case PieceType::ROOK:   s += 'r'; break;
-            case PieceType::BISHOP: s += 'b'; break;
-            case PieceType::KNIGHT: s += 'n'; break;
-            default: break;
-        }
-        return s;
-    }
-}
-
 SearchEngine::SearchEngine()
-    : maxDepth(8), timeLimit(5000), nodeLimit(0), nodesSearched(0),
+    : timeLimit(5000), nodeLimit(0), nodesSearched(0),
       currentDepth(0), quietMode(false), useOpeningBook(false) {
     tt.resize(TT_SIZE);
     newGame();

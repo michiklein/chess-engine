@@ -2,6 +2,7 @@
 #define TYPES_H
 
 #include <cstdint>
+#include <string>
 
 // Bitboard type
 using Bitboard = uint64_t;
@@ -98,7 +99,21 @@ constexpr Bitboard FILE_H = 0x8080808080808080ULL;
 constexpr Bitboard RANK_1 = 0x00000000000000FFULL;
 constexpr Bitboard RANK_8 = 0xFF00000000000000ULL;
 
-// Center squares
-constexpr Bitboard CENTER_SQUARES = setBit(setBit(setBit(setBit(EMPTY_BOARD, makeSquare(3, 3)), makeSquare(3, 4)), makeSquare(4, 3)), makeSquare(4, 4));
+// UCI coordinate notation for a move (e2e4, e7e8q)
+inline std::string moveToUci(const Move& move) {
+    std::string s;
+    s += static_cast<char>('a' + fileOf(move.from));
+    s += static_cast<char>('1' + rankOf(move.from));
+    s += static_cast<char>('a' + fileOf(move.to));
+    s += static_cast<char>('1' + rankOf(move.to));
+    switch (move.promotion) {
+        case PieceType::QUEEN:  s += 'q'; break;
+        case PieceType::ROOK:   s += 'r'; break;
+        case PieceType::BISHOP: s += 'b'; break;
+        case PieceType::KNIGHT: s += 'n'; break;
+        default: break;
+    }
+    return s;
+}
 
 #endif // TYPES_H
