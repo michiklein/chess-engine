@@ -78,6 +78,10 @@ private:
     int alphaBeta(Board& board, int depth, int alpha, int beta, bool nullMoveAllowed);
     int quiescence(Board& board, int alpha, int beta);
 
+    // Static exchange evaluation: expected material outcome of a capture
+    // after all profitable recaptures on the target square
+    int see(const Board& board, const Move& move);
+
     int getPositionalValue(PieceType type, Square square, Color color, bool endgame);
     // ttMove (if valid, i.e. from != to) is ordered first; depth selects the
     // killer-move slot.

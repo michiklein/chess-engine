@@ -357,6 +357,33 @@ void MoveGenerator::generateCastlingMoves(const Board& board, std::vector<Move>&
     }
 }
 
+Bitboard MoveGenerator::attackersTo(const Board& board, Square sq, Bitboard occupied) {
+    Bitboard attackers = EMPTY_BOARD;
+
+    // Pawns of color c attack sq iff a pawn of ~c on sq would attack them
+    attackers |= getPawnAttacks(sq, Color::BLACK) & board.getPieceBitboard(PieceType::PAWN, Color::WHITE);
+    attackers |= getPawnAttacks(sq, Color::WHITE) & board.getPieceBitboard(PieceType::PAWN, Color::BLACK);
+
+    attackers |= getKnightAttacks(sq) & (board.getPieceBitboard(PieceType::KNIGHT, Color::WHITE) |
+                                         board.getPieceBitboard(PieceType::KNIGHT, Color::BLACK));
+    attackers |= getKingAttacks(sq)   & (board.getPieceBitboard(PieceType::KING, Color::WHITE) |
+                                         board.getPieceBitboard(PieceType::KING, Color::BLACK));
+
+    Bitboard diag = getBishopAttacks(sq, occupied);
+    attackers |= diag & (board.getPieceBitboard(PieceType::BISHOP, Color::WHITE) |
+                         board.getPieceBitboard(PieceType::BISHOP, Color::BLACK) |
+                         board.getPieceBitboard(PieceType::QUEEN,  Color::WHITE) |
+                         board.getPieceBitboard(PieceType::QUEEN,  Color::BLACK));
+
+    Bitboard straight = getRookAttacks(sq, occupied);
+    attackers |= straight & (board.getPieceBitboard(PieceType::ROOK,  Color::WHITE) |
+                             board.getPieceBitboard(PieceType::ROOK,  Color::BLACK) |
+                             board.getPieceBitboard(PieceType::QUEEN, Color::WHITE) |
+                             board.getPieceBitboard(PieceType::QUEEN, Color::BLACK));
+
+    return attackers;
+}
+
 // Bitboard attack generation functions
 Bitboard MoveGenerator::getPawnAttacks(Square sq, Color color) {
     Bitboard attacks = EMPTY_BOARD;

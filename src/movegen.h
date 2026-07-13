@@ -16,6 +16,10 @@ public:
     // Check if a move is legal
     static bool isLegalMove(const Board& board, const Move& move);
 
+    // All pieces of both colors attacking sq, given an occupancy (which may
+    // differ from the board's, e.g. during static exchange evaluation)
+    static Bitboard attackersTo(const Board& board, Square sq, Bitboard occupied);
+
     // Bitboard attack generation (shared by Board and move generation)
     static Bitboard getPawnAttacks(Square sq, Color color);
     static Bitboard getKnightAttacks(Square sq);

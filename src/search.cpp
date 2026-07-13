@@ -215,37 +215,60 @@ SearchResult SearchEngine::search(const Board& board, int depth) {
     }
 
     Board mutableBoard = board;
+    int stableCount = 0;  // iterations in a row with the same best move
 
     for (int d = 1; d <= depth; d++) {
         currentDepth = d;
         // Previous iteration's best move is searched first.
         orderMoves(mutableBoard, moves, bestMove, d);
 
-        int alpha = -(MATE_SCORE + 1);
-        int beta  =  (MATE_SCORE + 1);
+        // Aspiration window: search around the previous score first; on a
+        // fail re-search that side with a full window.
+        int alphaW = (d >= 3) ? std::max(bestScore - 35, -(MATE_SCORE + 1)) : -(MATE_SCORE + 1);
+        int betaW  = (d >= 3) ? std::min(bestScore + 35,  (MATE_SCORE + 1)) :  (MATE_SCORE + 1);
+
         Move iterBest = moves[0];
         int iterBestScore = std::numeric_limits<int>::min();
 
-        for (size_t i = 0; i < moves.size(); i++) {
-            mutableBoard.makeMove(moves[i]);
-            int score;
-            if (i == 0) {
-                score = -alphaBeta(mutableBoard, d - 1, -beta, -alpha, true);
-            } else {
-                score = -alphaBeta(mutableBoard, d - 1, -alpha - 1, -alpha, true);
-                if (score > alpha && score < beta)
+        while (true) {
+            iterBestScore = std::numeric_limits<int>::min();
+            int alpha = alphaW;
+            int beta  = betaW;
+
+            for (size_t i = 0; i < moves.size(); i++) {
+                mutableBoard.makeMove(moves[i]);
+                int score;
+                if (i == 0) {
                     score = -alphaBeta(mutableBoard, d - 1, -beta, -alpha, true);
+                } else {
+                    score = -alphaBeta(mutableBoard, d - 1, -alpha - 1, -alpha, true);
+                    if (score > alpha && score < beta)
+                        score = -alphaBeta(mutableBoard, d - 1, -beta, -alpha, true);
+                }
+                mutableBoard.unmakeMove(moves[i]);
+
+                if (isTimeUp()) break;  // scores from an aborted search are garbage
+
+                if (score > iterBestScore) { iterBestScore = score; iterBest = moves[i]; }
+                if (score > alpha) alpha = score;
             }
-            mutableBoard.unmakeMove(moves[i]);
 
-            if (isTimeUp()) break;  // scores from an aborted search are garbage
-
-            if (score > iterBestScore) { iterBestScore = score; iterBest = moves[i]; }
-            if (score > alpha) alpha = score;
+            if (isTimeUp()) break;
+            if (iterBestScore <= alphaW && alphaW > -(MATE_SCORE + 1)) {
+                alphaW = -(MATE_SCORE + 1);  // fail low: re-search
+                continue;
+            }
+            if (iterBestScore >= betaW && betaW < MATE_SCORE + 1) {
+                betaW = MATE_SCORE + 1;      // fail high: re-search
+                continue;
+            }
+            break;
         }
 
         if ((!isTimeUp() || d == 1) &&
             iterBestScore != std::numeric_limits<int>::min()) {
+            bool sameMove = iterBest.from == bestMove.from && iterBest.to == bestMove.to;
+            stableCount = (sameMove && d > 1) ? stableCount + 1 : 0;
             bestMove  = iterBest;
             bestScore = iterBestScore;
         }
@@ -291,6 +314,16 @@ SearchResult SearchEngine::search(const Board& board, int depth) {
 
         // Forced mate found: deeper search cannot improve it.
         if (bestScore > MATE_SCORE - 100 || bestScore < -(MATE_SCORE - 100)) break;
+
+        // Soft time management: a new iteration costs about as much as all
+        // previous ones combined, so don't start one that can't finish, and
+        // stop early when the choice has been stable for several iterations.
+        if (timeLimit > 0) {
+            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - searchStart).count();
+            if (ms * 2 >= timeLimit) break;
+            if (stableCount >= 4 && ms * 3 >= timeLimit) break;
+        }
     }
 
     result.bestMove      = bestMove;
@@ -357,37 +390,40 @@ int SearchEngine::alphaBeta(Board& board, int depth, int alpha, int beta, bool n
         if (board.getSideToMove() == Color::BLACK) staticEval = -staticEval;
     }
 
-    std::vector<Move> moves = MoveGenerator::generateLegalMoves(board);
-    if (moves.empty())
-        return inCheck ? -(MATE_SCORE - depth) : DRAW_SCORE;
-
+    // Pseudo-legal moves with lazy legality: each move is validated by making
+    // it and testing for check, instead of filtering the whole list up front.
+    std::vector<Move> moves = MoveGenerator::generatePseudoLegalMoves(board);
     orderMoves(board, moves, hasTTMove ? ttMove : Move(), depth);
 
+    Color us           = board.getSideToMove();
     int  originalAlpha = alpha;
-    Move bestMove      = moves[0];
+    Move bestMove;
     int  bestScore     = std::numeric_limits<int>::min();
+    int  legalCount    = 0;
 
     for (size_t i = 0; i < moves.size(); i++) {
         const Move& move = moves[i];
         bool isQuiet = !move.isCapture && move.promotion == PieceType::NONE;
 
         // Futility pruning: skip quiet moves when static eval + margin can't beat alpha
-        if (doFutility && isQuiet && i > 0) {
+        if (doFutility && isQuiet && legalCount > 0) {
             int margin = (depth == 1) ? 100 : 300;
             if (staticEval + margin <= alpha) continue;
         }
 
         board.makeMove(move);
+        if (board.isInCheck(us)) { board.unmakeMove(move); continue; }
+        legalCount++;
         int score;
 
-        if (i == 0) {
+        if (legalCount == 1) {
             // First move: full window
             score = -alphaBeta(board, depth - 1, -beta, -alpha, true);
         } else {
             // LMR: reduce quiet moves that are ordered late
             int reduction = 0;
-            if (depth >= 3 && i >= 3 && isQuiet && !inCheck)
-                reduction = 1 + (i >= 6 && depth >= 4 ? 1 : 0);
+            if (depth >= 3 && legalCount > 3 && isQuiet && !inCheck)
+                reduction = 1 + (legalCount > 6 && depth >= 4 ? 1 : 0);
 
             // PVS: null window first
             score = -alphaBeta(board, depth - 1 - reduction, -alpha - 1, -alpha, true);
@@ -407,6 +443,9 @@ int SearchEngine::alphaBeta(Board& board, int depth, int alpha, int beta, bool n
         }
     }
 
+    if (legalCount == 0)
+        return inCheck ? -(MATE_SCORE - depth) : DRAW_SCORE;
+
     // Don't store aborted searches, and don't store mate scores: they encode
     // distance-to-mate relative to this node and are wrong elsewhere.
     if (!isTimeUp() && bestScore < MATE_SCORE - 100 && bestScore > -(MATE_SCORE - 100)) {
@@ -415,6 +454,48 @@ int SearchEngine::alphaBeta(Board& board, int depth, int alpha, int beta, bool n
     }
 
     return bestScore;
+}
+
+int SearchEngine::see(const Board& board, const Move& move) {
+    Square to = move.to;
+    Bitboard occ = board.getAllPieces();
+    int gain[32];
+    int d = 0;
+
+    Color stm          = board.pieceAt(move.from).color;
+    PieceType attacker = board.pieceAt(move.from).type;
+    PieceType victim   = move.isEnPassant ? PieceType::PAWN : board.pieceAt(to).type;
+
+    gain[0] = getPieceValue(victim);
+    occ &= ~(1ULL << move.from);
+    if (move.isEnPassant)
+        occ &= ~(1ULL << (stm == Color::WHITE ? to - 8 : to + 8));
+    stm = ~stm;
+
+    // Swap algorithm: alternate least-valuable recaptures until a side has
+    // none (recomputing attackers each round reveals x-ray attackers).
+    while (d < 30) {
+        Bitboard attackers = MoveGenerator::attackersTo(board, to, occ) & occ;
+        Bitboard side = attackers & (stm == Color::WHITE ? board.getWhitePieces()
+                                                         : board.getBlackPieces());
+        if (!side) break;
+
+        PieceType lva = PieceType::PAWN;
+        Bitboard fromBB = 0;
+        for (int t = 0; t < 6; t++) {
+            Bitboard s = side & board.getPieceBitboard(static_cast<PieceType>(t), stm);
+            if (s) { lva = static_cast<PieceType>(t); fromBB = s & (~s + 1); break; }
+        }
+
+        d++;
+        gain[d] = getPieceValue(attacker) - gain[d - 1];
+        attacker = lva;
+        occ &= ~fromBB;
+        stm = ~stm;
+    }
+
+    while (d > 0) { gain[d - 1] = -std::max(-gain[d - 1], gain[d]); d--; }
+    return gain[0];
 }
 
 int SearchEngine::quiescence(Board& board, int alpha, int beta) {
@@ -428,7 +509,7 @@ int SearchEngine::quiescence(Board& board, int alpha, int beta) {
 
     if (isTimeUp()) return alpha;
 
-    std::vector<Move> allMoves = MoveGenerator::generateLegalMoves(board);
+    std::vector<Move> allMoves = MoveGenerator::generatePseudoLegalMoves(board);
     std::vector<Move> captures;
     captures.reserve(allMoves.size());
     for (const Move& m : allMoves)
@@ -437,8 +518,19 @@ int SearchEngine::quiescence(Board& board, int alpha, int beta) {
 
     orderMoves(board, captures, Move(), 0);
 
+    Color us = board.getSideToMove();
     for (const Move& move : captures) {
+        if (move.promotion == PieceType::NONE) {
+            // Delta pruning: even winning this piece can't lift alpha
+            PieceType victim = move.isEnPassant ? PieceType::PAWN
+                                                : board.pieceAt(move.to).type;
+            if (standPat + getPieceValue(victim) + 200 <= alpha) continue;
+            // Skip captures that lose material outright
+            if (see(board, move) < 0) continue;
+        }
+
         board.makeMove(move);
+        if (board.isInCheck(us)) { board.unmakeMove(move); continue; }
         int score = -quiescence(board, -beta, -alpha);
         board.unmakeMove(move);
         if (score >= beta) return beta;
@@ -645,8 +737,13 @@ void SearchEngine::orderMoves(const Board& board, std::vector<Move>& moves,
         } else if (m.isCapture) {
             PieceType victim = m.isEnPassant ? PieceType::PAWN
                                              : board.pieceAt(m.to).type;
-            s = 100000 + getPieceValue(victim) * 10          // MVV-LVA
-                       - getPieceValue(board.pieceAt(m.from).type);
+            if (getPieceValue(victim) < getPieceValue(board.pieceAt(m.from).type) &&
+                see(board, m) < 0) {
+                s = 20000 + see(board, m);                   // losing capture: try late
+            } else {
+                s = 100000 + getPieceValue(victim) * 10      // MVV-LVA
+                           - getPieceValue(board.pieceAt(m.from).type);
+            }
         } else if (m.promotion != PieceType::NONE) {
             s = 90000 + getPieceValue(m.promotion);
         } else if (isKillerMove(m, depth)) {
