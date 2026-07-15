@@ -259,18 +259,3 @@ Move OpeningBook::getRandomMove(const Board& board) {
     }
     return it->second.back().move;
 }
-
-std::vector<OpeningMove> OpeningBook::getMoves(const Board& board) {
-    auto it = book.find(board.getHash());
-    return (it != book.end()) ? it->second : std::vector<OpeningMove>{};
-}
-
-bool OpeningBook::isInBook(const Board& board) {
-    return book.find(board.getHash()) != book.end();
-}
-
-std::string OpeningBook::getEcoCode(const Board& board) {
-    auto it = book.find(board.getHash());
-    if (it == book.end() || it->second.empty()) return "";
-    return it->second[0].ecoCode;
-}

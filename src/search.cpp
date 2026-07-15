@@ -197,7 +197,8 @@ SearchResult SearchEngine::search(const Board& board, int depth) {
     }
 
     Board mutableBoard = board;
-    int stableCount = 0;  // iterations in a row with the same best move
+    int stableCount = 0;      // iterations in a row with the same best move
+    bool scoreDropped = false;  // eval fell sharply on the last iteration
 
     for (int d = 1; d <= depth; d++) {
         currentDepth = d;
@@ -250,7 +251,8 @@ SearchResult SearchEngine::search(const Board& board, int depth) {
         if ((!isTimeUp() || d == 1) &&
             iterBestScore != std::numeric_limits<int>::min()) {
             bool sameMove = iterBest.from == bestMove.from && iterBest.to == bestMove.to;
-            stableCount = (sameMove && d > 1) ? stableCount + 1 : 0;
+            stableCount  = (sameMove && d > 1) ? stableCount + 1 : 0;
+            scoreDropped = (d > 2 && iterBestScore < bestScore - 40);
             bestMove  = iterBest;
             bestScore = iterBestScore;
         }
@@ -297,14 +299,21 @@ SearchResult SearchEngine::search(const Board& board, int depth) {
         // Forced mate found: deeper search cannot improve it.
         if (bestScore > MATE_SCORE - 100 || bestScore < -(MATE_SCORE - 100)) break;
 
-        // Soft time management: a new iteration costs about as much as all
-        // previous ones combined, so don't start one that can't finish, and
-        // stop early when the choice has been stable for several iterations.
+        // Time strategy: aim for the soft budget, spend less when the best
+        // move has been stable for several iterations, and stretch the budget
+        // when the score just dropped — that is when extra thought pays most.
+        // The hard limit (isTimeUp) still aborts mid-iteration regardless.
         if (timeLimit > 0) {
             auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now() - searchStart).count();
+            double budget = (softLimit > 0) ? softLimit : timeLimit * 0.5;
+            if (stableCount >= 4) budget *= 0.6;
+            if (scoreDropped)     budget *= 2.5;
+            if (budget > timeLimit) budget = timeLimit;
+            if (ms >= budget) break;
+            // A new iteration costs about as much as all previous combined:
+            // don't start one that cannot possibly finish within the hard cap.
             if (ms * 2 >= timeLimit) break;
-            if (stableCount >= 4 && ms * 3 >= timeLimit) break;
         }
     }
 

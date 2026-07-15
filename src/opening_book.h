@@ -25,9 +25,6 @@ public:
     bool loadEmbedded();  // book compiled into the binary (eco_book.cpp)
 
     Move getRandomMove(const Board& board);
-    std::vector<OpeningMove> getMoves(const Board& board);
-    bool isInBook(const Board& board);
-    std::string getEcoCode(const Board& board);
 
 private:
     // Positions are keyed by the board's zobrist hash, so transpositions

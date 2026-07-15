@@ -13,6 +13,7 @@ import argparse
 import datetime
 import pathlib
 import sys
+import time
 
 try:
     import chess
@@ -29,6 +30,8 @@ def main():
     ap = argparse.ArgumentParser(description="Match: chess_engine vs Stockfish")
     ap.add_argument("--games", type=int, default=20, help="number of games (default 20)")
     ap.add_argument("--movetime", type=int, default=1000, help="ms per move for both engines (default 1000)")
+    ap.add_argument("--tc", help='real clock time control "base+inc" in seconds, e.g. "60+0.6"; '
+                                 'overrides --movetime and enforces flagging')
     ap.add_argument("--elo", type=int, help="limit Stockfish strength via UCI_Elo (min 1320)")
     ap.add_argument("--skill", type=int, help="Stockfish Skill Level 0-20")
     ap.add_argument("--stockfish", default="stockfish", help="path to stockfish binary")
@@ -56,7 +59,12 @@ def main():
     if sf_options:
         sf.configure(sf_options)
 
-    limit = chess.engine.Limit(time=args.movetime / 1000)
+    tc_base = tc_inc = None
+    if args.tc:
+        parts = args.tc.split("+")
+        tc_base = float(parts[0])
+        tc_inc = float(parts[1]) if len(parts) > 1 else 0.0
+
     wins = losses = draws = 0
     date = datetime.date.today().strftime("%Y.%m.%d")
 
@@ -65,14 +73,30 @@ def main():
             ours_is_white = (g % 2 == 1)
             board = chess.Board()
             termination = None
+            clocks = {chess.WHITE: tc_base, chess.BLACK: tc_base}  # unused w/o --tc
 
             while not board.is_game_over(claim_draw=True) and len(board.move_stack) < MAX_PLIES:
                 engine = ours if (board.turn == chess.WHITE) == ours_is_white else sf
+                mover = board.turn
+                if tc_base is not None:
+                    limit = chess.engine.Limit(
+                        white_clock=clocks[chess.WHITE], black_clock=clocks[chess.BLACK],
+                        white_inc=tc_inc, black_inc=tc_inc)
+                else:
+                    limit = chess.engine.Limit(time=args.movetime / 1000)
+                start = time.perf_counter()
                 try:
                     result = engine.play(board, limit, game=g)
                 except chess.engine.EngineError as e:
                     termination = f"engine error: {e}"
                     break
+                if tc_base is not None:
+                    clocks[mover] -= time.perf_counter() - start
+                    if clocks[mover] < 0:
+                        who = "chess_engine" if engine is ours else "stockfish"
+                        termination = f"forfeit: {who} flagged (clock below zero)"
+                        break
+                    clocks[mover] += tc_inc
                 if result.move is None or result.move not in board.legal_moves:
                     who = "chess_engine" if engine is ours else "stockfish"
                     termination = f"forfeit: {who} returned invalid move {result.move}"
@@ -105,7 +129,7 @@ def main():
             game.headers["White"] = "chess_engine" if ours_is_white else sf_name
             game.headers["Black"] = sf_name if ours_is_white else "chess_engine"
             game.headers["Result"] = result_str
-            game.headers["TimeControl"] = f"{args.movetime}ms/move"
+            game.headers["TimeControl"] = args.tc if args.tc else f"{args.movetime}ms/move"
             if termination:
                 game.headers["Termination"] = termination
             with open(pgn_path, "a") as f:

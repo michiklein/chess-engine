@@ -61,10 +61,6 @@ public:
     // En passant
     Square getEnPassantSquare() const { return enPassantSquare; }
 
-    // Move counters
-    int getHalfMoveClock() const { return halfMoveClock; }
-    int getFullMoveNumber() const { return fullMoveNumber; }
-
     // Make/unmake moves
     void makeMove(const Move& move);
     void unmakeMove(const Move& move);

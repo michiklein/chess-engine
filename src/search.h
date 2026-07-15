@@ -35,7 +35,11 @@ public:
     // Reset transposition table and move-ordering heuristics (ucinewgame)
     void newGame();
 
+    // Hard limit: the search aborts mid-iteration when it is reached.
     void setTimeLimit(int milliseconds) { timeLimit = milliseconds; }
+    // Soft limit: target think time; iteration loop stops around it, stretched
+    // when the score drops or shrunk when the best move is stable.
+    void setSoftTimeLimit(int milliseconds) { softLimit = milliseconds; }
     void setNodeLimit(int limit) { nodeLimit = limit; }
     void setQuietMode(bool quiet) { quietMode = quiet; }
     // Disable the book for a search (e.g. "go infinite" = analysis mode)
@@ -51,7 +55,8 @@ protected:
     virtual int evaluate(const Board& board);
 
 private:
-    int timeLimit;  // ms; 0 = unlimited
+    int timeLimit;      // ms; 0 = unlimited (hard)
+    int softLimit{0};   // ms; 0 = derive from timeLimit
     int nodeLimit;  // node count; 0 = unlimited
     int nodesSearched;
     int currentDepth;

@@ -144,7 +144,7 @@ void UCIEngine::handleGo(const std::vector<std::string>& tokens) {
     int depth     = 0;
     int nodes     = 0;
     int movetime  = 0;
-    int wtime = 0, btime = 0, winc = 0, binc = 0, movestogo = 30;
+    int wtime = 0, btime = 0, winc = 0, binc = 0, movestogo = 0;
     bool infinite = false;
     constexpr int MAX_PRACTICAL_DEPTH = 12;
 
@@ -165,19 +165,27 @@ void UCIEngine::handleGo(const std::vector<std::string>& tokens) {
         else if (tokens[i] == "infinite")  infinite  = true;
     }
 
-    int timeLimitMs = 0;
+    int timeLimitMs = 0;  // hard limit
+    int softMs      = 0;  // target think time
     if (movetime > 0) {
         timeLimitMs = movetime;
+        softMs      = movetime;
     } else if (!infinite && (wtime > 0 || btime > 0)) {
         int myTime = (board.getSideToMove() == Color::WHITE) ? wtime : btime;
         int myInc  = (board.getSideToMove() == Color::WHITE) ? winc  : binc;
-        if (movestogo <= 0) movestogo = 30;
-        timeLimitMs = myTime / movestogo + myInc / 2;
-        timeLimitMs = std::max(timeLimitMs, 50);
-        timeLimitMs = std::min(timeLimitMs, myTime / 2);
-        timeLimitMs = std::max(timeLimitMs, 1);  // 0 would mean "no limit"
+        // Target an even split over the expected remaining moves (a sudden-
+        // death clock has no movestogo; assume 40), plus most of the
+        // increment. The hard cap allows several times that for critical
+        // moments but never more than a quarter of the remaining clock, so
+        // low-clock situations automatically get snap decisions.
+        int mtg = (movestogo > 0) ? movestogo : 40;
+        softMs      = std::max(myTime / mtg + myInc / 2, 10);
+        timeLimitMs = std::max(std::min(myTime / 4, softMs * 5), softMs);
+        timeLimitMs = std::min(timeLimitMs, std::max(myTime - 100, 10));
+        softMs      = std::min(softMs, timeLimitMs);
     } else if (!infinite && depth == 0 && nodes == 0) {
         timeLimitMs = 5000;  // bare "go": think for 5 seconds instead of forever
+        softMs      = 5000;
     }
 
     // Stop any in-progress search before starting a new one
@@ -186,6 +194,7 @@ void UCIEngine::handleGo(const std::vector<std::string>& tokens) {
     stopRequested = false;
 
     search.setTimeLimit(timeLimitMs);
+    search.setSoftTimeLimit(softMs);
     search.setNodeLimit(nodes);
     search.setStopFlag(&stopRequested);
     // Analysis mode: search the position itself, don't answer from the book
