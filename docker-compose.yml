@@ -1,0 +1,19 @@
+# Lichess bot: engine + lichess-bot bridge in one container.
+#
+# On ZimaOS (or any Docker host):
+#   LICHESS_BOT_TOKEN=xxxx docker compose up -d --build
+# Stop/start anytime from the dashboard or with: docker compose stop / start
+services:
+  lichess-bot:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: chess-lichess-bot
+    environment:
+      - LICHESS_BOT_TOKEN=${LICHESS_BOT_TOKEN:?set LICHESS_BOT_TOKEN}
+    restart: unless-stopped
+    stop_grace_period: 30s
+    # Keep the bot from competing with other services on the host. It uses
+    # one core while playing, ~nothing while idle; raise/remove if dedicated.
+    cpus: 1.5
+    mem_limit: 512m

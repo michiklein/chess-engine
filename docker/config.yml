@@ -1,0 +1,50 @@
+token: "PASTE_YOUR_TOKEN_HERE"     # injected from LICHESS_BOT_TOKEN by entrypoint.sh
+url: "https://lichess.org/"
+
+engine:
+  dir: "/engine"
+  name: "chess_engine"
+  protocol: "uci"
+  ponder: false                    # the engine does not implement pondering
+  silence_stderr: false
+
+  draw_or_resign:
+    resign_enabled: false
+    offer_draw_enabled: true
+    offer_draw_score: 0
+    offer_draw_moves: 10
+    offer_draw_pieces: 10
+
+abort_time: 30
+fake_think_time: false
+rate_limiting_delay: 0
+move_overhead: 2000                # network + bridge latency buffer per move
+
+challenge:
+  concurrency: 1                   # one game at a time
+  sort_by: "best"
+  accept_bot: true
+  only_bot: false
+  max_increment: 20
+  min_increment: 0
+  max_base: 1800
+  min_base: 0
+  variants:
+    - standard
+  time_controls:
+    - bullet
+    - blitz
+    - rapid
+    - classical
+  modes:
+    - casual
+    - rated
+
+greeting:
+  hello: "Hi! I'm {me}, a from-scratch C++ engine. Good luck!"
+  goodbye: "Good game!"
+  hello_spectators: "Hi! I'm {me}, a from-scratch C++ engine."
+  goodbye_spectators: "Thanks for watching!"
+
+matchmaking:
+  allow_matchmaking: false         # set true to auto-challenge other bots when idle

@@ -26,6 +26,18 @@ overrides the built-in book.
 
 Moves are entered in algebraic notation: `e4`, `Nf3`, `Bxc5`, `O-O`, or coordinate style: `e2e4`.
 
+## Play on Lichess (Docker)
+
+Runs the engine behind [lichess-bot](https://github.com/lichess-bot-devs/lichess-bot)
+in a single container — works on any Docker host (ZimaOS, CasaOS, a VPS):
+
+```bash
+LICHESS_BOT_TOKEN=<token with bot:play scope> docker compose up -d --build
+```
+
+Start/stop the `chess-lichess-bot` container from the dashboard to take the
+bot on/offline. Bot settings live in `docker/config.yml`.
+
 ## Test
 
 ```bash
