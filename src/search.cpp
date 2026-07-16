@@ -595,7 +595,7 @@ int SearchEngine::getPieceValue(PieceType type) {
         case PieceType::KNIGHT: return 320;
         case PieceType::BISHOP: return 330;
         case PieceType::ROOK:   return 500;
-        case PieceType::QUEEN:  return 900;
+        case PieceType::QUEEN:  return 1000;
         case PieceType::KING:   return 20000;
         default: return 0;
     }
