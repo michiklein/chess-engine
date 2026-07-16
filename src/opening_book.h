@@ -17,13 +17,19 @@ public:
     bool loadFromFile(const std::string& filename);
     bool loadEmbedded();  // book compiled into the binary (eco_book.cpp)
 
-    // Uniform random choice among the position's book moves
+    // Random choice among the position's book moves, weighted by how many
+    // book lines continue through each move (mainlines are preferred)
     Move getRandomMove(const Board& board);
 
 private:
+    struct BookMove {
+        Move move;
+        int weight;
+    };
+
     // Positions are keyed by the board's zobrist hash, so transpositions
     // (same position via a different move order) share book entries.
-    std::unordered_map<uint64_t, std::vector<Move>> book;
+    std::unordered_map<uint64_t, std::vector<BookMove>> book;
     std::mt19937 rng;
 
     bool parseStream(std::istream& file, const std::string& sourceName);

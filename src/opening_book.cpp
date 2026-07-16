@@ -73,11 +73,15 @@ void OpeningBook::processGame(const std::vector<std::string>& moves) {
 }
 
 void OpeningBook::addMoveToBook(uint64_t positionKey, const Move& move) {
-    std::vector<Move>& entries = book[positionKey];
-    for (const Move& existing : entries)
-        if (existing.from == move.from && existing.to == move.to &&
-            existing.promotion == move.promotion) return;
-    entries.push_back(move);
+    std::vector<BookMove>& entries = book[positionKey];
+    for (BookMove& existing : entries) {
+        if (existing.move.from == move.from && existing.move.to == move.to &&
+            existing.move.promotion == move.promotion) {
+            existing.weight++;
+            return;
+        }
+    }
+    entries.push_back({move, 1});
 }
 
 // Resolves a move string (castle, coordinate, or SAN) to one of the position's
@@ -204,6 +208,14 @@ Move OpeningBook::getRandomMove(const Board& board) {
     auto it = book.find(board.getHash());
     if (it == book.end() || it->second.empty()) return Move();
 
-    std::uniform_int_distribution<size_t> dist(0, it->second.size() - 1);
-    return it->second[dist(rng)];
+    int totalWeight = 0;
+    for (const BookMove& m : it->second) totalWeight += m.weight;
+
+    std::uniform_int_distribution<int> dist(1, totalWeight);
+    int roll = dist(rng);
+    for (const BookMove& m : it->second) {
+        roll -= m.weight;
+        if (roll <= 0) return m.move;
+    }
+    return it->second.back().move;
 }
