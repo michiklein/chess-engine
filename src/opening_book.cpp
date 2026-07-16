@@ -24,102 +24,60 @@ bool OpeningBook::loadEmbedded() {
 
 bool OpeningBook::parseStream(std::istream& file, const std::string& sourceName) {
     std::string line;
-    std::string currentEcoCode;
-    std::string currentName;
     std::vector<std::string> currentMoves;
     bool inGame = false;
 
     while (std::getline(file, line)) {
         if (!line.empty() && line.back() == '\r') line.pop_back();
 
-        if (line.empty()) {
+        // Header lines and blank lines end the current movetext block
+        if (line.empty() || line[0] == '[') {
             if (inGame && !currentMoves.empty()) {
-                processGame(currentEcoCode, currentName, currentMoves);
-                currentMoves.clear();
-                inGame = false;
-            }
-            continue;
-        }
-
-        if (line[0] == '[') {
-            if (inGame && !currentMoves.empty()) {
-                processGame(currentEcoCode, currentName, currentMoves);
+                processGame(currentMoves);
                 currentMoves.clear();
             }
             inGame = false;
+            continue;
+        }
 
-            if (line.find("[Site") == 0) {
-                size_t start = line.find('"') + 1;
-                size_t end = line.find('"', start);
-                if (start != std::string::npos && end != std::string::npos)
-                    currentEcoCode = line.substr(start, end - start);
-            } else if (line.find("[White") == 0) {
-                size_t start = line.find('"') + 1;
-                size_t end = line.find('"', start);
-                if (start != std::string::npos && end != std::string::npos)
-                    currentName = line.substr(start, end - start);
-            }
-        } else {
-            inGame = true;
-            std::istringstream iss(line);
-            std::string token;
-            while (iss >> token) {
-                if (token.back() == '.') continue;
-                if (token == "1-0" || token == "0-1" || token == "1/2-1/2" || token == "*") continue;
-                if (token.empty() || token[0] == '{' || token[0] == ';' || token[0] == '$') continue;
-                while (!token.empty() && (token.back() == '!' || token.back() == '?' ||
-                                          token.back() == '+' || token.back() == '#'))
-                    token.pop_back();
-                if (!token.empty()) currentMoves.push_back(token);
-            }
+        inGame = true;
+        std::istringstream iss(line);
+        std::string token;
+        while (iss >> token) {
+            if (token.back() == '.') continue;
+            if (token == "1-0" || token == "0-1" || token == "1/2-1/2" || token == "*") continue;
+            if (token.empty() || token[0] == '{' || token[0] == ';' || token[0] == '$') continue;
+            while (!token.empty() && (token.back() == '!' || token.back() == '?' ||
+                                      token.back() == '+' || token.back() == '#'))
+                token.pop_back();
+            if (!token.empty()) currentMoves.push_back(token);
         }
     }
 
     if (inGame && !currentMoves.empty())
-        processGame(currentEcoCode, currentName, currentMoves);
+        processGame(currentMoves);
 
     std::cerr << "Loaded " << book.size() << " positions from opening book ("
               << sourceName << ")" << std::endl;
     return !book.empty();
 }
 
-void OpeningBook::processGame(const std::string& ecoCode, const std::string& name,
-                              const std::vector<std::string>& moves) {
-    if (moves.empty()) return;
-
+void OpeningBook::processGame(const std::vector<std::string>& moves) {
     Board board;
-
-    for (size_t i = 0; i < moves.size(); i++) {
-        Move move = parseMove(moves[i], board);
+    for (const std::string& moveStr : moves) {
+        Move move = parseMove(moveStr, board);
         if (move.from == move.to && move.from == 0) return;
-
-        OpeningMove openingMove;
-        openingMove.move = move;
-        openingMove.ecoCode = ecoCode;
-        openingMove.name = name;
-        openingMove.frequency = 1;
-
-        addMoveToBook(board.getHash(), openingMove);
-
+        addMoveToBook(board.getHash(), move);
         board.makeMove(move);
     }
 }
 
-void OpeningBook::addMoveToBook(uint64_t positionKey, const OpeningMove& openingMove) {
-    auto it = book.find(positionKey);
-    if (it != book.end()) {
-        for (auto& existing : it->second) {
-            if (existing.move.from == openingMove.move.from &&
-                existing.move.to == openingMove.move.to &&
-                existing.move.promotion == openingMove.move.promotion) {
-                existing.frequency++;
-                return;
-            }
-        }
-        it->second.push_back(openingMove);
-    } else {
-        book[positionKey] = {openingMove};
-    }
+void OpeningBook::addMoveToBook(uint64_t positionKey, const Move& move) {
+    std::vector<Move>& entries = book[positionKey];
+    for (const Move& existing : entries)
+        if (existing.from == move.from && existing.to == move.to &&
+            existing.promotion == move.promotion) return;
+    entries.push_back(move);
 }
 
 // Resolves a move string (castle, coordinate, or SAN) to one of the position's
@@ -246,16 +204,6 @@ Move OpeningBook::getRandomMove(const Board& board) {
     auto it = book.find(board.getHash());
     if (it == book.end() || it->second.empty()) return Move();
 
-    int totalWeight = 0;
-    for (const auto& m : it->second) totalWeight += m.frequency;
-    if (totalWeight == 0) return it->second[0].move;
-
-    std::uniform_int_distribution<int> dist(1, totalWeight);
-    int randomWeight = dist(rng);
-    int currentWeight = 0;
-    for (const auto& m : it->second) {
-        currentWeight += m.frequency;
-        if (randomWeight <= currentWeight) return m.move;
-    }
-    return it->second.back().move;
+    std::uniform_int_distribution<size_t> dist(0, it->second.size() - 1);
+    return it->second[dist(rng)];
 }
