@@ -8,13 +8,61 @@ under rate limits). Gives the ZimaOS/CasaOS app tile a real web UI.
 import html
 import json
 import os
+import shlex
+import signal
+import subprocess
+import sys
+import threading
 import time
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 TOKEN = os.environ.get("LICHESS_BOT_TOKEN", "")
 PORT = int(os.environ.get("STATUS_PORT", "8087"))
+BOT_DIR = os.environ.get("BOT_DIR", "/lichess-bot")
+BOT_CMD = shlex.split(os.environ.get("BOT_CMD", "python lichess-bot.py"))
 UA = "chess-engine-status/1.0"
+
+
+class Supervisor:
+    """Runs lichess-bot as a child process; restarts it if it crashes."""
+
+    def __init__(self):
+        self.proc = None
+        self.desired = True  # user wants the bot running
+        self.lock = threading.Lock()
+        threading.Thread(target=self._watch, daemon=True).start()
+
+    def alive(self):
+        return self.proc is not None and self.proc.poll() is None
+
+    def start(self):
+        with self.lock:
+            self.desired = True
+            if not self.alive():
+                self.proc = subprocess.Popen(BOT_CMD, cwd=BOT_DIR)
+
+    def stop(self):
+        with self.lock:
+            self.desired = False
+            if self.alive():
+                self.proc.send_signal(signal.SIGINT)  # lichess-bot's clean quit
+        if self.proc:
+            try:
+                self.proc.wait(timeout=20)
+            except subprocess.TimeoutExpired:
+                self.proc.kill()
+
+    def _watch(self):
+        while True:
+            time.sleep(5)
+            if self.desired and not self.alive():
+                with self.lock:
+                    if self.desired and not self.alive():
+                        self.proc = subprocess.Popen(BOT_CMD, cwd=BOT_DIR)
+
+
+supervisor = Supervisor()
 
 _cache: dict = {}
 
@@ -73,13 +121,30 @@ td { padding:6px 8px; border-top:1px solid var(--line); }
 td a { color:var(--accent); text-decoration:none; }
 .win { color:var(--good); font-weight:600; } .loss { color:var(--bad); font-weight:600; }
 .foot { color:var(--muted); font-size:12px; margin-top:20px; }
+.controls { display:flex; gap:8px; margin-bottom:22px; }
+.controls form { display:inline; }
+button { font:14px system-ui; padding:6px 14px; border-radius:6px; cursor:pointer;
+         border:1px solid var(--line); background:transparent; color:var(--ink); }
+button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+.chip { font-size:13px; color:var(--muted); align-self:center; margin-left:4px; }
 """
+
+def controls():
+    running = supervisor.alive()
+    if running:
+        buttons = ('<form method="post" action="/stop"><button>stop bot</button></form>'
+                   '<form method="post" action="/restart"><button>restart bot</button></form>')
+    else:
+        buttons = '<form method="post" action="/start"><button class="primary">start bot</button></form>'
+    chip = "bot process: running" if running else "bot process: stopped"
+    return f'<div class="controls">{buttons}<span class="chip">{chip}</span></div>'
+
 
 def page():
     u = username()
     if not u:
-        return "<h1>chess-engine bot</h1><p>Waiting for Lichess connection " \
-               "(no username yet - is LICHESS_BOT_TOKEN set?)</p>"
+        return ("<h1>chess-engine bot</h1><p>Waiting for Lichess connection "
+                "(no username yet - is LICHESS_BOT_TOKEN set?)</p>" + controls())
 
     esc = html.escape
     user = fetch(f"https://lichess.org/api/user/{u}", ttl=60) or {}
@@ -132,9 +197,11 @@ def page():
 
     return f"""<h1><a href="https://lichess.org/@/{esc(u)}">{esc(u)}</a></h1>
 <div class="sub"><span class="{dot}"></span>{state}{now_playing}</div>
+{controls()}
 <div class="tiles">{tiles}</div>
 <table><tr><th>Game</th><th>Opponent</th><th>Color</th><th>Result</th></tr>{rows}</table>
-<div class="foot">Auto-refreshes every 30s - data from the public Lichess API</div>"""
+<div class="foot">Auto-refreshes every 30s - data from the public Lichess API -
+to update the engine run ./bot.sh update-app on the server</div>"""
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -149,8 +216,29 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def do_POST(self):
+        if self.path == "/start":
+            supervisor.start()
+        elif self.path == "/stop":
+            supervisor.stop()
+        elif self.path == "/restart":
+            supervisor.stop()
+            supervisor.start()
+        self.send_response(303)
+        self.send_header("Location", "/")
+        self.end_headers()
+
     def log_message(self, *args):  # keep the container log clean
         pass
 
+
+def shutdown(*_):
+    supervisor.stop()
+    sys.exit(0)
+
+
 if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, shutdown)  # docker stop: quit bot cleanly
+    signal.signal(signal.SIGINT, shutdown)
+    supervisor.start()
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
