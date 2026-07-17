@@ -34,6 +34,9 @@ case "$1" in
     # exec a fresh copy after pulling, in case the pull updated this script;
     # prune afterwards so old image layers don't accumulate on the SSD
     update)  git pull && exec sh -c './bot.sh start && sudo docker image prune -f' ;;
+    # for the ZimaOS-app-managed container: refresh the image, then restart
+    # the app from the ZimaOS dashboard to pick it up
+    update-app) git pull && exec sh -c './bot.sh build && sudo docker image prune -f && echo "image rebuilt - now restart the kleiniBOT app in ZimaOS"' ;;
     build)   $DC build ;;
     down)    $DC down ;;
     *)

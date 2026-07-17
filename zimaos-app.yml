@@ -1,0 +1,55 @@
+# ZimaOS/CasaOS app definition for the Lichess bot.
+#
+# One-time install:
+#   1. On the server:  ./bot.sh down   (free the container name)
+#                      ./bot.sh build  (create the chess-lichess-bot:latest image)
+#   2. ZimaOS dashboard -> App Store -> "+" (Install a customized app) ->
+#      Import tab -> paste this file's contents
+#   3. Replace PASTE_YOUR_TOKEN_HERE with your lichess bot:play token -> Install
+#
+# The app tile then opens the bot's status page, and start/stop on the tile
+# takes the bot on/offline.
+name: kleinibot
+services:
+  app:
+    image: chess-lichess-bot:latest
+    pull_policy: never              # image is built locally by ./bot.sh build
+    container_name: kleinibot
+    environment:
+      LICHESS_BOT_TOKEN: "PASTE_YOUR_TOKEN_HERE"
+    ports:
+      - "8087:8087"
+    restart: unless-stopped
+    cpus: 0.2                       # ~5% of a 4-core host
+    mem_limit: 512m
+    x-casaos:
+      envs:
+        - container: LICHESS_BOT_TOKEN
+          description:
+            en_us: Lichess API token with the bot:play scope
+      ports:
+        - container: "8087"
+          description:
+            en_us: Bot status page
+
+x-casaos:
+  architectures:
+    - amd64
+  main: app
+  author: michiklein
+  category: Games
+  developer: michiklein
+  icon: https://lichess1.org/assets/logo/lichess-favicon-256.png
+  tagline:
+    en_us: A from-scratch C++ chess engine playing on Lichess
+  description:
+    en_us: >-
+      kleiniBOT - a from-scratch chess engine running behind the lichess-bot
+      bridge. The app page shows live status, ratings, record, and recent
+      games. Start/stop the app to take the bot on/offline.
+  title:
+    en_us: kleiniBOT
+  index: /
+  port_map: "8087"
+  scheme: http
+  store_app_id: kleinibot
