@@ -15,7 +15,8 @@ services:
       - LICHESS_BOT_TOKEN=${LICHESS_BOT_TOKEN:?set LICHESS_BOT_TOKEN}
     restart: unless-stopped
     stop_grace_period: 30s
-    # Keep the bot from competing with other services on the host. It uses
-    # one core while playing, ~nothing while idle; raise/remove if dedicated.
-    cpus: 1.5
+    # Keep the bot from competing with other services on the host. CPU only
+    # burns during games; this cap trades playing strength for quietness.
+    # 0.2 cores ~= 5% of a 4-core server (check with nproc; 5% = 0.05 x cores).
+    cpus: 0.2
     mem_limit: 512m
