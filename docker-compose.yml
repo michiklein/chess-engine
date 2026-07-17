@@ -8,6 +8,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
+    # Stable image name so the ZimaOS app screen can reference it
+    image: chess-lichess-bot:latest
     container_name: chess-lichess-bot
     environment:
       - LICHESS_BOT_TOKEN=${LICHESS_BOT_TOKEN:?set LICHESS_BOT_TOKEN}

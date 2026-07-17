@@ -54,3 +54,6 @@ games/
 
 # Shippable builds
 dist/
+
+# Server secrets
+.env
