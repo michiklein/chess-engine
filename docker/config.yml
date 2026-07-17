@@ -18,7 +18,7 @@ engine:
 abort_time: 30
 fake_think_time: false
 rate_limiting_delay: 0
-move_overhead: 2000                # network + bridge latency buffer per move
+move_overhead: 1000                # network + bridge latency buffer per move
 
 challenge:
   concurrency: 1                   # one game at a time
@@ -47,4 +47,16 @@ greeting:
   goodbye_spectators: "Thanks for watching!"
 
 matchmaking:
-  allow_matchmaking: false         # set true to auto-challenge other bots when idle
+  allow_matchmaking: true          # auto-challenge other bots when idle
+  challenge_timeout: 3             # minutes of idling before it seeks a game
+  challenge_initial_time:          # time controls it offers (chosen at random)
+    - 60
+    - 180
+    - 300
+  challenge_increment:
+    - 0
+    - 1
+    - 2
+  challenge_mode: "rated"          # rated games so the rating establishes
+  opponent_rating_difference: 600
+  challenge_filter: coarse         # don't re-spam bots that decline
