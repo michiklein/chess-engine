@@ -31,7 +31,9 @@ case "$1" in
     start)   $DC up -d --build ;;
     stop)    $DC stop ;;
     logs)    sudo docker logs -f chess-lichess-bot ;;
-    update)  git pull && $DC up -d --build ;;
+    # exec a fresh copy after pulling, in case the pull updated this script;
+    # prune afterwards so old image layers don't accumulate on the SSD
+    update)  git pull && exec sh -c './bot.sh start && sudo docker image prune -f' ;;
     build)   $DC build ;;
     down)    $DC down ;;
     *)
