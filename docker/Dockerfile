@@ -23,8 +23,10 @@ RUN apt-get update && \
 
 COPY --from=build /build/chess_engine /engine/chess_engine
 COPY docker/config.yml /lichess-bot/config.yml.tmpl
+COPY docker/status_server.py /status_server.py
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+EXPOSE 8087
 WORKDIR /lichess-bot
 ENTRYPOINT ["/entrypoint.sh"]
