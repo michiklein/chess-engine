@@ -120,6 +120,7 @@ th { text-align:left; color:var(--muted); font-size:12px; text-transform:upperca
 td { padding:6px 8px; border-top:1px solid var(--line); }
 td a { color:var(--accent); text-decoration:none; }
 .win { color:var(--good); font-weight:600; } .loss { color:var(--bad); font-weight:600; }
+.mut { color:var(--muted); font-weight:400; font-size:13px; }
 .foot { color:var(--muted); font-size:12px; margin-top:20px; }
 .controls { display:flex; gap:8px; margin-bottom:22px; }
 .controls form { display:inline; }
@@ -174,10 +175,16 @@ def page():
 
     rows = ""
     for g in games:
-        white = g.get("players", {}).get("white", {}).get("user", {}).get("name", "?")
-        black = g.get("players", {}).get("black", {}).get("user", {}).get("name", "?")
-        we_are_white = white.lower() == u.lower()
-        opp = black if we_are_white else white
+        players = g.get("players", {})
+        white = players.get("white", {})
+        black = players.get("black", {})
+        we_are_white = white.get("user", {}).get("name", "").lower() == u.lower()
+        us, them = (white, black) if we_are_white else (black, white)
+
+        opp = them.get("user", {}).get("name", "?")
+        opp_rating = them.get("rating")
+        opp_txt = f'{esc(opp)} <span class="mut">({opp_rating})</span>' if opp_rating else esc(opp)
+
         winner = g.get("winner")
         if not winner:
             res, cls = "draw", ""
@@ -185,10 +192,14 @@ def page():
             res, cls = "win", "win"
         else:
             res, cls = "loss", "loss"
+        diff = us.get("ratingDiff")
+        if diff is not None:
+            res += f' <span class="mut">{"+" if diff >= 0 else ""}{diff}</span>'
+
         gid = g.get("id", "")
         rows += (f'<tr><td><a href="https://lichess.org/{esc(gid)}">'
                  f'{esc(g.get("speed", "?"))}</a></td>'
-                 f'<td>{esc(opp)}</td>'
+                 f'<td>{opp_txt}</td>'
                  f'<td>{"white" if we_are_white else "black"}</td>'
                  f'<td class="{cls}">{res}</td></tr>')
 
