@@ -1,19 +1,18 @@
 # ZimaOS/CasaOS app definition for the Lichess bot.
 #
 # One-time install:
-#   1. On the server:  ./bot.sh down   (free the container name)
-#                      ./bot.sh build  (create the chess-lichess-bot:latest image)
-#   2. ZimaOS dashboard -> App Store -> "+" (Install a customized app) ->
+#   1. ZimaOS dashboard -> App Store -> "+" (Install a customized app) ->
 #      Import tab -> paste this file's contents
-#   3. Replace PASTE_YOUR_TOKEN_HERE with your lichess bot:play token -> Install
+#   2. Replace PASTE_YOUR_TOKEN_HERE with your lichess bot:play token -> Install
+# The image is pulled from ghcr.io (built by GitHub Actions on every push).
 #
 # The app tile then opens the bot's status page, and start/stop on the tile
 # takes the bot on/offline.
 name: kleinibot
 services:
   app:
-    image: chess-lichess-bot:latest
-    pull_policy: never              # image is built locally by ./bot.sh build
+    # Published automatically by GitHub Actions on every push to main
+    image: ghcr.io/michiklein/chess-engine:latest
     container_name: kleinibot
     environment:
       LICHESS_BOT_TOKEN: "PASTE_YOUR_TOKEN_HERE"
