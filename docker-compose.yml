@@ -12,7 +12,8 @@ services:
     image: chess-lichess-bot:latest
     container_name: chess-lichess-bot
     environment:
-      - LICHESS_BOT_TOKEN=${LICHESS_BOT_TOKEN:?set LICHESS_BOT_TOKEN}
+      # required at runtime (the entrypoint enforces it), optional for build
+      - LICHESS_BOT_TOKEN=${LICHESS_BOT_TOKEN:-}
     ports:
       - "8087:8087"   # status page (web UI for the ZimaOS app tile)
     restart: unless-stopped
