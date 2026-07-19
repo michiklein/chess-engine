@@ -394,6 +394,17 @@ def page():
 <div class="barlabels"><b>{w}</b> wins &middot; <b>{d}</b> draws &middot; <b>{l}</b> losses
 &middot; {100 * w / total:.0f}% won</div></div>"""
 
+    def when(ms):
+        if not ms:
+            return ""
+        dt = datetime.datetime.fromtimestamp(ms / 1000)
+        mins = (time.time() - ms / 1000) / 60
+        if mins < 60:
+            return f"{int(mins)}m ago"
+        if mins < 60 * 24:
+            return f"{int(mins // 60)}h ago"
+        return dt.strftime("%b %d")
+
     rows = ""
     for g in games:
         players = g.get("players", {})
@@ -418,11 +429,12 @@ def page():
                  f'{esc(g.get("speed", "?"))}</a></td>'
                  f'<td>{opp_txt}</td>'
                  f'<td>{"white" if we_are_white else "black"}</td>'
-                 f'<td class="{cls}">{res}</td></tr>')
+                 f'<td class="{cls}">{res}</td>'
+                 f'<td class="mut">{when(g.get("lastMoveAt") or g.get("createdAt"))}</td></tr>')
 
     games_table = f"""
 <div class="card"><div class="cardhead"><span class="cardtitle">Recent games</span></div>
-<table><tr><th>Game</th><th>Opponent</th><th>Color</th><th>Result</th></tr>{rows}</table></div>"""
+<table><tr><th>Game</th><th>Opponent</th><th>Color</th><th>Result</th><th>When</th></tr>{rows}</table></div>"""
 
     return f"""<h1><a href="https://lichess.org/@/{esc(u)}">{esc(u)}</a></h1>
 <div class="sub"><span class="{dot}"></span>{state}{now_playing}</div>
