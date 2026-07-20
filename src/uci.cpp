@@ -197,8 +197,10 @@ void UCIEngine::handleGo(const std::vector<std::string>& tokens) {
     search.setSoftTimeLimit(softMs);
     search.setNodeLimit(nodes);
     search.setStopFlag(&stopRequested);
-    // Analysis mode: search the position itself, don't answer from the book
-    search.setBookEnabled(!infinite);
+    // The book answers instantly without producing any evaluation, so use it
+    // only in real timed games (clocks present). Analysis requests -
+    // infinite, fixed depth/nodes/movetime - always search.
+    search.setBookEnabled(wtime > 0 || btime > 0);
 
     if (depth > MAX_PRACTICAL_DEPTH && timeLimitMs == 0 && nodes == 0 && !infinite) {
         std::cout << "info string requested depth " << depth
