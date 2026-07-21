@@ -36,6 +36,7 @@ MAX_DAYS = 60
 NGAMES = 60  # recent games pulled for the table and by-color/speed stats
 OPENINGS_FILE = os.environ.get("OPENINGS_CACHE", "/tmp/openings.json")
 OPENINGS_REFRESH = 600  # seconds between incremental all-time openings pulls
+PEAKS_FILE = os.environ.get("PEAKS_CACHE", "/tmp/peaks.json")
 
 
 # ---------------------------------------------------------------------------
@@ -160,6 +161,54 @@ def username():
         if acct:
             _username = acct.get("username")
     return _username
+
+
+# Local, resettable rating peaks: start at the current rating and ratchet
+# up; the reset button sets them back to the current rating.
+_peaks_lock = threading.Lock()
+
+
+def load_peaks():
+    try:
+        with open(PEAKS_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def save_peaks(p):
+    try:
+        tmp = PEAKS_FILE + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(p, f)
+        os.replace(tmp, PEAKS_FILE)
+    except Exception:
+        pass
+
+
+def track_peaks(current):
+    """current: {speed: rating}; returns updated peaks dict."""
+    with _peaks_lock:
+        p = load_peaks()
+        changed = False
+        for k, r in current.items():
+            if r is not None and r > p.get(k, 0):
+                p[k] = r
+                changed = True
+        if changed:
+            save_peaks(p)
+        return p
+
+
+def reset_peaks():
+    u = username()
+    if not u:
+        return
+    user = fetch(f"https://lichess.org/api/user/{u}", ttl=0) or {}
+    perfs = user.get("perfs", {})
+    with _peaks_lock:
+        save_peaks({k: p.get("rating") for k, p in perfs.items()
+                    if p.get("games") and p.get("rating")})
 
 
 def opening_family(name):
@@ -539,7 +588,10 @@ def controls(running):
         buttons = '<form method="post" action="/start"><button class="primary">start bot</button></form>'
     buttons += ('<form method="post" action="/update-engine" '
                 'onsubmit="return confirm(\'Download the latest engine and restart?\')">'
-                '<button>update engine</button></form>')
+                '<button>update engine</button></form>'
+                '<form method="post" action="/reset-peaks" '
+                'onsubmit="return confirm(\'Reset peak ratings to the current ratings?\')">'
+                '<button>reset peaks</button></form>')
     chip = "running" if running else "stopped"
     return f'<div class="controls">{buttons}<span class="chipstate">bot: {chip}</span></div>'
 
@@ -576,16 +628,11 @@ def page(view="all"):
     now_playing = (f' &middot; <a href="https://lichess.org/{esc(str(game_id))}">watch live</a>'
                    if playing and game_id else "")
 
-    # Peak rating per speed, from the rating history (cached fetch)
-    peaks = {}
-    hist = fetch(f"https://lichess.org/api/user/{u}/rating-history", ttl=300) or []
-    for h in hist:
-        pts = h.get("points", [])
-        if pts:
-            peaks[h.get("name")] = max(p[3] for p in pts)
-
-    # Rating tiles with trend + all-time peak
+    # Rating tiles with trend + local resettable peak
     perfs = user.get("perfs", {})
+    peaks = track_peaks({k: perfs.get(k, {}).get("rating")
+                         for k in ("bullet", "blitz", "rapid", "classical")
+                         if perfs.get(k, {}).get("games")})
     tiles = ""
     for key, label in [("bullet", "Bullet"), ("blitz", "Blitz"),
                        ("rapid", "Rapid"), ("classical", "Classical")]:
@@ -596,7 +643,7 @@ def page(view="all"):
         prog = p.get("prog", 0)
         trend = (f'<span class="up">&#9650;{prog}</span>' if prog > 0 else
                  f'<span class="down">&#9660;{-prog}</span>' if prog < 0 else "")
-        peak = peaks.get(label)
+        peak = peaks.get(key)
         peak_txt = f" &middot; peak {peak}" if peak else ""
         tiles += (f'<div class="tile"><div class="k">{label}</div>'
                   f'<div class="v">{p.get("rating", "-")}{prov} {trend}</div>'
@@ -803,6 +850,9 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/update-engine":
             threading.Thread(target=update_engine, daemon=True).start()
             supervisor.status = "updating engine..."
+        elif self.path == "/reset-peaks":
+            reset_peaks()
+            supervisor.status = "peak ratings reset to current"
         self.send_response(303)
         self.send_header("Location", "/")
         self.end_headers()
