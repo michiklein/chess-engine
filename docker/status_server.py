@@ -37,6 +37,7 @@ NGAMES = 60  # recent games pulled for the table and by-color/speed stats
 OPENINGS_FILE = os.environ.get("OPENINGS_CACHE", "/tmp/openings.json")
 OPENINGS_REFRESH = 600  # seconds between incremental all-time openings pulls
 PEAKS_FILE = os.environ.get("PEAKS_CACHE", "/tmp/peaks.json")
+UPDATES_FILE = os.environ.get("UPDATES_CACHE", "/tmp/engine_updates.json")
 
 
 # ---------------------------------------------------------------------------
@@ -114,7 +115,18 @@ def update_engine():
             raise RuntimeError("downloaded binary did not respond to uci")
         supervisor.stop()
         os.replace(tmp, ENGINE)
-        supervisor.status = "engine updated to " + engine_version()
+        ver = engine_version()
+        supervisor.status = "engine updated to " + ver
+        try:  # remember when, so the rating chart can mark it
+            log = []
+            if os.path.exists(UPDATES_FILE):
+                with open(UPDATES_FILE) as f:
+                    log = json.load(f)
+            log.append({"t": time.time(), "ver": ver})
+            with open(UPDATES_FILE, "w") as f:
+                json.dump(log, f)
+        except Exception:
+            pass
     except Exception as e:
         supervisor.status = "update failed: " + str(e)
         try:
@@ -221,13 +233,13 @@ _openings_last = 0.0
 _openings_lock = threading.Lock()
 
 
-STORE_VERSION = 4  # bump when the accumulated schema changes -> forces a rebuild
+STORE_VERSION = 5  # bump when the accumulated schema changes -> forces a rebuild
 
 
 def _new_sub():
     # one tally group, sliceable independently for all / bots / humans
     return {"white": {}, "black": {}, "speed": {}, "buckets": {}, "opps": {},
-            "best_win": None, "worst_loss": None}
+            "days": {}, "best_win": None, "worst_loss": None}
 
 
 def _new_store():
@@ -306,11 +318,14 @@ def openings_store(u):
                     fam = opening_family(gv["opening"])
                     bucket = rating_bucket(gv["opp_rating"])
                     who = "bot" if gv["opp_title"] == "BOT" else "human"
+                    dayord = str(datetime.date.fromtimestamp(
+                        g.get("createdAt", 0) / 1000).toordinal())
                     for grp in ("all", who):  # accumulate into combined + its group
                         sub = store[grp]
                         _bump(sub[side], fam, gv["res"])
                         _bump(sub["speed"], gv["speed"], gv["res"])
                         _bump(sub["opps"], gv["opp"], gv["res"])
+                        sub["days"][dayord] = sub["days"].get(dayord, 0) + 1
                         if bucket:
                             _bump(sub["buckets"], bucket, gv["res"])
                         r = gv["opp_rating"]
@@ -434,6 +449,22 @@ def build_chart(u):
         grid += (f'<text x="{round(x(i), 1)}" y="{CHART_H - 8}" class="tick" '
                  f'text-anchor="middle">{d.strftime("%b %d")}</text>')
 
+    # Engine-update markers: a dashed vertical tick on each update day, so
+    # the chart doubles as an experiment log ("did that change help?")
+    try:
+        with open(UPDATES_FILE) as f:
+            updates = json.load(f)
+    except Exception:
+        updates = []
+    day_index = {day: i for i, day in enumerate(days)}
+    for upd in updates:
+        uday = datetime.date.fromtimestamp(upd.get("t", 0)).toordinal()
+        if uday in day_index:
+            ux = round(x(day_index[uday]), 1)
+            grid += (f'<g><line x1="{ux}" y1="{PAD_T}" x2="{ux}" y2="{CHART_H - PAD_B}" '
+                     f'class="upd"/><text x="{ux + 3}" y="{PAD_T + 9}" class="updlabel">upd</text>'
+                     f'<title>engine update: {html.escape(str(upd.get("ver", "")))}</title></g>')
+
     lines, dots, labels = "", "", ""
     for s in series:
         pts = [(round(x(i), 1), round(y(v), 1)) for i, v in enumerate(s["vals"]) if v is not None]
@@ -521,44 +552,52 @@ CHART_JS = """
 """
 
 CSS = """
-:root { --surface:#fcfcfb; --ink:#1f1f1e; --muted:#6f6e6a; --line:#e6e5e1;
-        --good:#0ca30c; --bad:#c05a36; --accent:#2a78d6;
-        --s1:#2a78d6; --s2:#1baf7a; --s3:#eda100; }
+:root { --surface:#f4f3f0; --card:#fdfdfc; --ink:#1f1f1e; --muted:#6f6e6a;
+        --line:#e3e2de; --hover:#f2f1ed; --good:#0ca30c; --bad:#c05a36;
+        --accent:#2a78d6; --s1:#2a78d6; --s2:#1baf7a; --s3:#eda100; }
 @media (prefers-color-scheme: dark) {
-  :root { --surface:#1a1a19; --ink:#ececea; --muted:#989792; --line:#33322f;
-          --good:#3fbf3f; --bad:#ec835a; --accent:#86b6ef;
-          --s1:#3987e5; --s2:#199e70; --s3:#c98500; }
+  :root { --surface:#141413; --card:#1e1d1c; --ink:#ececea; --muted:#989792;
+          --line:#31302d; --hover:#262524; --good:#3fbf3f; --bad:#ec835a;
+          --accent:#86b6ef; --s1:#3987e5; --s2:#199e70; --s3:#c98500; }
 }
 * { box-sizing:border-box; margin:0; }
-body { background:var(--surface); color:var(--ink); max-width:680px;
-       font:15px/1.5 system-ui,-apple-system,sans-serif; margin:0 auto; padding:24px 16px; }
-h1 { font-size:22px; } h1 a { color:inherit; text-decoration:none; }
-.sub { color:var(--muted); margin-bottom:16px; }
-.sub a { color:var(--accent); }
+body { background:var(--surface); color:var(--ink); max-width:700px;
+       font:15px/1.55 system-ui,-apple-system,sans-serif; margin:0 auto; padding:28px 18px 40px; }
+h1 { font-size:24px; letter-spacing:-.01em; } h1 a { color:inherit; text-decoration:none; }
+.sub { color:var(--muted); margin:2px 0 18px; }
+.sub a { color:var(--accent); text-decoration:none; }
 .dot { display:inline-block; width:9px; height:9px; border-radius:50%;
-       background:var(--muted); margin-right:5px; }
+       background:var(--muted); margin-right:6px; }
 .dot.on { background:var(--good); }
-.controls { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+.controls { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
 .controls form { display:inline; }
-button { font:14px system-ui; padding:6px 14px; border-radius:6px; cursor:pointer;
-         border:1px solid var(--line); background:transparent; color:var(--ink); }
+button { font:14px system-ui; padding:6px 14px; border-radius:7px; cursor:pointer;
+         border:1px solid var(--line); background:var(--card); color:var(--ink);
+         transition:border-color .15s, color .15s; }
+button:hover { border-color:var(--accent); color:var(--accent); }
 button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+button.primary:hover { filter:brightness(1.08); color:#fff; }
 .chipstate { font-size:13px; color:var(--muted); align-self:center; }
-.tabs { display:flex; gap:4px; margin-bottom:14px; }
-.tab { font-size:14px; padding:5px 12px; border-radius:6px; text-decoration:none;
-       color:var(--muted); border:1px solid var(--line); }
+.tabs { display:flex; gap:5px; margin-bottom:16px; }
+.tab { font-size:14px; padding:5px 13px; border-radius:999px; text-decoration:none;
+       color:var(--muted); border:1px solid var(--line); background:var(--card);
+       transition:border-color .15s, color .15s; }
+.tab:hover { border-color:var(--accent); color:var(--accent); }
 .tab.on { color:#fff; background:var(--accent); border-color:var(--accent); }
 .msg { font-size:13px; color:var(--accent); margin-bottom:14px; min-height:1px; }
-.tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
-         gap:10px; margin-bottom:14px; }
-.tile { border:1px solid var(--line); border-radius:8px; padding:10px 12px; }
-.tile .k { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
-.tile .v { font-size:24px; font-weight:600; margin-top:2px; }
+.tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(126px,1fr));
+         gap:10px; margin-bottom:16px; }
+.tile { background:var(--card); border:1px solid var(--line); border-radius:10px;
+        padding:11px 13px; }
+.tile .k { color:var(--muted); font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; }
+.tile .v { font-size:25px; font-weight:650; margin-top:2px; letter-spacing:-.01em; }
 .tile .v small { font-size:13px; color:var(--muted); font-weight:400; }
 .up { color:var(--good); font-size:13px; } .down { color:var(--bad); font-size:13px; }
-.card { border:1px solid var(--line); border-radius:8px; padding:12px; margin-bottom:14px; }
-.cardhead { display:flex; justify-content:space-between; margin-bottom:6px; }
-.cardtitle { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:10px;
+        padding:13px 15px; margin-bottom:14px; }
+.cardhead { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; }
+.cardtitle { color:var(--muted); font-size:11.5px; text-transform:uppercase;
+             letter-spacing:.06em; font-weight:600; }
 .legend { display:flex; gap:6px; align-items:center; }
 .chip { width:10px; height:10px; border-radius:3px; display:inline-block; }
 .lgname { font-size:12px; color:var(--muted); margin-right:6px; }
@@ -569,28 +608,41 @@ button.primary { background:var(--accent); border-color:var(--accent); color:#ff
 .slabel { fill:var(--ink); font-size:11px; }
 .sline { fill:none; stroke-width:2; stroke-linejoin:round; }
 .cross { stroke:var(--muted); stroke-width:1; stroke-dasharray:3 3; }
-.hoverdot { stroke:var(--surface); stroke-width:2; }
-#tip { position:absolute; display:none; pointer-events:none; background:var(--surface);
-       border:1px solid var(--line); border-radius:6px; padding:6px 9px; font-size:12px;
-       box-shadow:0 2px 8px rgba(0,0,0,.12); min-width:100px; }
-.bar { display:flex; gap:2px; height:12px; border-radius:4px; overflow:hidden; margin:6px 0; }
+.hoverdot { stroke:var(--card); stroke-width:2; }
+.upd { stroke:var(--muted); stroke-width:1; stroke-dasharray:2 3; }
+.updlabel { fill:var(--muted); font-size:9px; }
+#tip { position:absolute; display:none; pointer-events:none; background:var(--card);
+       border:1px solid var(--line); border-radius:7px; padding:6px 10px; font-size:12px;
+       box-shadow:0 3px 10px rgba(0,0,0,.14); min-width:100px; }
+.bar { display:flex; gap:2px; height:12px; border-radius:5px; overflow:hidden; margin:6px 0; }
 .bar span { display:block; min-width:1px; }
 .bar .w { background:var(--good); } .bar .d { background:var(--muted); } .bar .l { background:var(--bad); }
-.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px 20px; }
+.actrow { display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap; }
+.spark .sbar { fill:var(--accent); opacity:.45; }
+.spark .sbar.now { opacity:1; }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px 22px; }
 .statline { font-size:14px; } .statline .lab { color:var(--muted); }
 .statline b { font-variant-numeric:tabular-nums; }
 .op { margin:9px 0; } .oprow { display:flex; justify-content:space-between; font-size:14px; }
 .opname { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.opsc { color:var(--muted); font-size:13px; flex:none; margin-left:10px; }
+.opsc { color:var(--muted); font-size:13px; flex:none; margin-left:10px;
+        font-variant-numeric:tabular-nums; }
 table { width:100%; border-collapse:collapse; }
-th { text-align:left; color:var(--muted); font-size:12px; text-transform:uppercase;
-     letter-spacing:.04em; font-weight:500; padding:4px 8px; }
+th { text-align:left; color:var(--muted); font-size:11.5px; text-transform:uppercase;
+     letter-spacing:.06em; font-weight:600; padding:4px 8px; }
 td { padding:6px 8px; border-top:1px solid var(--line); }
+tr:hover td { background:var(--hover); }
+tr:first-child:hover th { background:none; }
 .card a { color:var(--accent); text-decoration:none; }
+.card a:hover { text-decoration:underline; }
 .win { color:var(--good); font-weight:600; } .loss { color:var(--bad); font-weight:600; }
 .mut { color:var(--muted); font-weight:400; font-size:13px; }
 .foot { color:var(--muted); font-size:12px; margin-top:18px; }
 """
+
+FAVICON = ("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' "
+           "viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='88'%3E%E2%99%9E"
+           "%3C/text%3E%3C/svg%3E")
 
 
 def wdl_bar(w, d, l):
@@ -689,6 +741,31 @@ def page(view="all"):
     if view != "all":
         games = [gv for gv in games
                  if ("bot" if gv["opp_title"] == "BOT" else "human") == view]
+
+    # ---- Activity card: games today / this week + 14-day sparkline ---------
+    today_ord = datetime.date.today().toordinal()
+    daycounts = sub.get("days", {})
+    today_n = daycounts.get(str(today_ord), 0)
+    week_n = sum(daycounts.get(str(today_ord - i), 0) for i in range(7))
+    spark_days = [(i, daycounts.get(str(today_ord - 13 + i), 0)) for i in range(14)]
+    max_n = max((n for _, n in spark_days), default=0)
+    bars = ""
+    if max_n:
+        for i, n in spark_days:
+            bh = round(24 * n / max_n, 1) if n else 1
+            d = datetime.date.fromordinal(today_ord - 13 + i)
+            cls = "sbar now" if i == 13 else "sbar"
+            bars += (f'<rect x="{i * 12}" y="{round(26 - bh, 1)}" width="9" height="{bh}" '
+                     f'rx="2" class="{cls}"><title>{d.strftime("%b %d")}: {n} games</title></rect>')
+    activity = f"""
+<div class="card"><div class="cardhead"><span class="cardtitle">Activity</span>
+  <span class="mut">{vlabel} &middot; last 14 days</span></div>
+  <div class="actrow">
+    <div class="statline"><b>{today_n}</b> <span class="lab">today</span>
+      &nbsp;&nbsp;<b>{week_n}</b> <span class="lab">this week</span></div>
+    <svg class="spark" viewBox="0 0 168 28" width="168" height="28">{bars}</svg>
+  </div>
+</div>""" if max_n else ""
 
     # ---- Performance card: overall + by color + by speed -------------------
     def color_totals(side):
@@ -871,6 +948,7 @@ def page(view="all"):
 <div class="tiles">{tiles}</div>
 {chart_svg}
 {view_toggle(view)}
+{activity}
 {perf}
 {opponents}
 {openings}
@@ -893,7 +971,8 @@ class Handler(BaseHTTPRequestHandler):
             view = vs
         body = f"""<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="refresh" content="60"><title>chess-engine bot</title>
+<meta http-equiv="refresh" content="60"><title>kleiniBOT dashboard</title>
+<link rel="icon" href="{FAVICON}">
 <style>{CSS}</style></head><body>{page(view)}
 <script>{CHART_JS}</script></body></html>"""
         data = body.encode()
