@@ -171,17 +171,23 @@ _openings_last = 0.0
 _openings_lock = threading.Lock()
 
 
+STORE_VERSION = 2  # bump when the accumulated schema changes -> forces a rebuild
+
+
 def _new_store():
-    return {"since": 0, "white": {}, "black": {}, "speed": {}, "buckets": {}, "vs": {}}
+    return {"v": STORE_VERSION, "since": 0,
+            "white": {}, "black": {}, "speed": {}, "buckets": {}, "vs": {}}
 
 
 def _load_openings():
     try:
         with open(OPENINGS_FILE) as f:
             s = json.load(f)
-            for k in ("speed", "buckets", "vs"):
-                s.setdefault(k, {})
-            return s
+        if s.get("v") != STORE_VERSION:  # old schema: rebuild from scratch
+            return _new_store()
+        for k in ("speed", "buckets", "vs"):
+            s.setdefault(k, {})
+        return s
     except Exception:
         return _new_store()
 
