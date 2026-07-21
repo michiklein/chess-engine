@@ -16,6 +16,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -171,12 +172,17 @@ _openings_last = 0.0
 _openings_lock = threading.Lock()
 
 
-STORE_VERSION = 2  # bump when the accumulated schema changes -> forces a rebuild
+STORE_VERSION = 3  # bump when the accumulated schema changes -> forces a rebuild
+
+
+def _new_sub():
+    # one tally group, sliceable independently for all / bots / humans
+    return {"white": {}, "black": {}, "speed": {}, "buckets": {}}
 
 
 def _new_store():
     return {"v": STORE_VERSION, "since": 0,
-            "white": {}, "black": {}, "speed": {}, "buckets": {}, "vs": {}}
+            "all": _new_sub(), "bot": _new_sub(), "human": _new_sub()}
 
 
 def _load_openings():
@@ -185,8 +191,8 @@ def _load_openings():
             s = json.load(f)
         if s.get("v") != STORE_VERSION:  # old schema: rebuild from scratch
             return _new_store()
-        for k in ("speed", "buckets", "vs"):
-            s.setdefault(k, {})
+        for grp in ("all", "bot", "human"):
+            s.setdefault(grp, _new_sub())
         return s
     except Exception:
         return _new_store()
@@ -247,12 +253,15 @@ def openings_store(u):
                     g = json.loads(raw)
                     gv = game_view(g, u)
                     side = "white" if gv["we_white"] else "black"
-                    _bump(store[side], opening_family(gv["opening"]), gv["res"])
-                    _bump(store["speed"], gv["speed"], gv["res"])
+                    fam = opening_family(gv["opening"])
                     bucket = rating_bucket(gv["opp_rating"])
-                    if bucket:
-                        _bump(store["buckets"], bucket, gv["res"])
-                    _bump(store["vs"], "bot" if gv["opp_title"] == "BOT" else "human", gv["res"])
+                    who = "bot" if gv["opp_title"] == "BOT" else "human"
+                    for grp in ("all", who):  # accumulate into combined + its group
+                        sub = store[grp]
+                        _bump(sub[side], fam, gv["res"])
+                        _bump(sub["speed"], gv["speed"], gv["res"])
+                        if bucket:
+                            _bump(sub["buckets"], bucket, gv["res"])
                     created = g.get("createdAt", 0)
                     if created + 1 > store["since"]:
                         store["since"] = created + 1
@@ -461,6 +470,10 @@ button { font:14px system-ui; padding:6px 14px; border-radius:6px; cursor:pointe
          border:1px solid var(--line); background:transparent; color:var(--ink); }
 button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
 .chipstate { font-size:13px; color:var(--muted); align-self:center; }
+.tabs { display:flex; gap:4px; margin-bottom:14px; }
+.tab { font-size:14px; padding:5px 12px; border-radius:6px; text-decoration:none;
+       color:var(--muted); border:1px solid var(--line); }
+.tab.on { color:#fff; background:var(--accent); border-color:var(--accent); }
 .msg { font-size:13px; color:var(--accent); margin-bottom:14px; min-height:1px; }
 .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
          gap:10px; margin-bottom:14px; }
@@ -531,7 +544,17 @@ def controls(running):
     return f'<div class="controls">{buttons}<span class="chipstate">bot: {chip}</span></div>'
 
 
-def page():
+def view_toggle(view):
+    opts = [("all", "All"), ("bot", "vs Bots"), ("human", "vs Humans")]
+    links = "".join(
+        f'<a class="tab{" on" if view == k else ""}" href="/?vs={k}">{lbl}</a>'
+        for k, lbl in opts)
+    return f'<div class="tabs">{links}</div>'
+
+
+def page(view="all"):
+    if view not in ("all", "bot", "human"):
+        view = "all"
     u = username()
     running = supervisor.alive()
     if not u:
@@ -586,20 +609,22 @@ def page():
 
     chart_svg = build_chart(u)
 
-    # All-time tallies (by opening, color, and speed), accumulated once
+    # All-time tallies, accumulated once; `sub` is the selected slice
     store = openings_store(u)
+    sub = store[view]
+    vlabel = {"all": "all-time", "bot": "vs bots", "human": "vs humans"}[view]
 
-    # ---- Performance card: all-time overall + by color + by speed ----------
+    # ---- Performance card: overall + by color + by speed -------------------
     def color_totals(side):
         w = d = l = 0
-        for r in store[side].values():
+        for r in sub[side].values():
             w += r["win"]; d += r["draw"]; l += r["loss"]
         return w, d, l
 
     ww, wd, wl = color_totals("white")
     bw, bd, bl = color_totals("black")
     w, d, l = ww + bw, wd + bd, wl + bl
-    if w + d + l == 0:  # store not populated yet: fall back to the profile count
+    if w + d + l == 0 and view == "all":  # not populated yet: fall back to profile
         w, d, l = c.get("win", 0), c.get("draw", 0), c.get("loss", 0)
 
     # Current streak from the recent games (newest first)
@@ -624,7 +649,7 @@ def page():
 
     speed_lines = ""
     for s in ("bullet", "blitz", "rapid", "classical"):
-        r = store["speed"].get(s)
+        r = sub["speed"].get(s)
         if r:
             speed_lines += (f'<div class="statline"><span class="lab">{s}</span> '
                             f'&nbsp;<b>{r["win"]}-{r["draw"]}-{r["loss"]}</b> '
@@ -639,34 +664,26 @@ def page():
   {wdl_bar(w, d, l)}
   <div class="grid2" style="margin-top:10px">{color_block}</div>
   <div style="margin-top:8px">{speed_lines}</div>
-  <div class="mut" style="margin-top:6px;font-size:12px">all-time by color / speed</div>
+  <div class="mut" style="margin-top:6px;font-size:12px">{vlabel} by color / speed</div>
 </div>"""
 
-    # ---- Opponents card: by rating strength + bots vs humans --------------
+    # ---- Opponents card: by rating strength -------------------------------
     bucket_rows = ""
     for b in BUCKET_ORDER:
-        r = store["buckets"].get(b)
+        r = sub["buckets"].get(b)
         if r:
             bucket_rows += (f'<div class="op"><div class="oprow">'
                             f'<span class="opname">vs {b}</span>'
                             f'<span class="opsc">{r["n"]}g &middot; {r["win"]}-{r["draw"]}-{r["loss"]} '
                             f'&middot; {score_pct(r["win"],r["draw"],r["loss"])}</span></div>'
                             f'{wdl_bar(r["win"], r["draw"], r["loss"])}</div>')
-    vs_lines = ""
-    for who in ("human", "bot"):
-        r = store["vs"].get(who)
-        if r:
-            vs_lines += (f'<div class="statline"><span class="lab">vs {who}s</span> '
-                         f'&nbsp;<b>{r["win"]}-{r["draw"]}-{r["loss"]}</b> '
-                         f'<span class="mut">{score_pct(r["win"],r["draw"],r["loss"])}</span></div>')
     opponents = f"""
-<div class="card"><div class="cardhead"><span class="cardtitle">Opponents</span>
-  <span class="mut">all-time</span></div>
+<div class="card"><div class="cardhead"><span class="cardtitle">Opponents by strength</span>
+  <span class="mut">{vlabel}</span></div>
   {bucket_rows or '<div class="mut">no data yet</div>'}
-  <div style="margin-top:8px">{vs_lines}</div>
-</div>""" if bucket_rows or vs_lines else ""
+</div>""" if bucket_rows else ""
 
-    # ---- Openings card: all-time, split by color (reuses `store` above) ----
+    # ---- Openings card: split by color (from the selected slice) ----------
     def opening_col(side_tally):
         top = sorted(side_tally.items(), key=lambda kv: -kv[1]["n"])[:6]
         if not top:
@@ -678,13 +695,13 @@ def page():
                     f'{wdl_bar(r["win"], r["draw"], r["loss"])}</div>')
         return out
 
-    total_ops = sum(r["n"] for r in store["white"].values()) + \
-                sum(r["n"] for r in store["black"].values())
+    total_ops = sum(r["n"] for r in sub["white"].values()) + \
+                sum(r["n"] for r in sub["black"].values())
 
     # Best/worst opening family by score, over families with enough games
     combined = {}
     for side in ("white", "black"):
-        for fam, r in store[side].items():
+        for fam, r in sub[side].items():
             c2 = combined.setdefault(fam, {"win": 0, "draw": 0, "loss": 0, "n": 0})
             for k in ("win", "draw", "loss", "n"):
                 c2[k] += r[k]
@@ -703,11 +720,11 @@ def page():
 
     openings = f"""
 <div class="card"><div class="cardhead"><span class="cardtitle">Openings</span>
-  <span class="mut">all-time &middot; {total_ops} games</span></div>
+  <span class="mut">{vlabel} &middot; {total_ops} games</span></div>
 {callout}
 <div class="grid2">
-  <div><div class="statline lab" style="margin-bottom:4px">as White</div>{opening_col(store["white"])}</div>
-  <div><div class="statline lab" style="margin-bottom:4px">as Black</div>{opening_col(store["black"])}</div>
+  <div><div class="statline lab" style="margin-bottom:4px">as White</div>{opening_col(sub["white"])}</div>
+  <div><div class="statline lab" style="margin-bottom:4px">as Black</div>{opening_col(sub["black"])}</div>
 </div></div>"""
 
     # ---- Recent games table -----------------------------------------------
@@ -749,6 +766,7 @@ def page():
 {msg_html}
 <div class="tiles">{tiles}</div>
 {chart_svg}
+{view_toggle(view)}
 {perf}
 {opponents}
 {openings}
@@ -758,10 +776,15 @@ def page():
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        view = "all"
+        q = urllib.parse.urlparse(self.path).query
+        vs = urllib.parse.parse_qs(q).get("vs", ["all"])[0]
+        if vs in ("all", "bot", "human"):
+            view = vs
         body = f"""<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="refresh" content="60"><title>chess-engine bot</title>
-<style>{CSS}</style></head><body>{page()}
+<style>{CSS}</style></head><body>{page(view)}
 <script>{CHART_JS}</script></body></html>"""
         data = body.encode()
         self.send_response(200)
