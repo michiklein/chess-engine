@@ -21,7 +21,7 @@ rate_limiting_delay: 0
 move_overhead: 1000                # network + bridge latency buffer per move
 
 challenge:
-  concurrency: 3                   # accept up to 3 games at once (shares the CPU cap)
+  concurrency: 1                   # one game at a time
   sort_by: "best"
   accept_bot: true                 # accept bots and humans
   only_bot: false
