@@ -32,7 +32,9 @@ UA = "chess-engine-status/3.0"
 CHART_W, CHART_H = 640, 230
 PAD_L, PAD_R, PAD_T, PAD_B = 44, 14, 12, 26
 MAX_DAYS = 60
-NGAMES = 60  # games pulled for stats/openings
+NGAMES = 60  # recent games pulled for the table and by-color/speed stats
+OPENINGS_FILE = os.environ.get("OPENINGS_CACHE", "/tmp/openings.json")
+OPENINGS_REFRESH = 600  # seconds between incremental all-time openings pulls
 
 
 # ---------------------------------------------------------------------------
@@ -157,6 +159,71 @@ def username():
         if acct:
             _username = acct.get("username")
     return _username
+
+
+def opening_family(name):
+    return (name or "Unknown").split(":")[0].split(",")[0].strip() or "Unknown"
+
+
+# All-time openings, accumulated incrementally and persisted so we never
+# re-download the whole game history on each page load.
+_openings_last = 0.0
+_openings_lock = threading.Lock()
+
+
+def _load_openings():
+    try:
+        with open(OPENINGS_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {"since": 0, "white": {}, "black": {}}
+
+
+def _save_openings(store):
+    try:
+        tmp = OPENINGS_FILE + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(store, f)
+        os.replace(tmp, OPENINGS_FILE)
+    except Exception:
+        pass
+
+
+def openings_store(u):
+    """Return the all-time by-color openings tally, refreshing incrementally."""
+    global _openings_last
+    with _openings_lock:
+        store = _load_openings()
+        if time.time() - _openings_last < OPENINGS_REFRESH and store["since"]:
+            return store
+        _openings_last = time.time()
+        since = store.get("since", 0)
+        url = (f"https://lichess.org/api/games/user/{u}"
+               f"?opening=true&sort=dateAsc&rated=true")
+        if since:
+            url += f"&since={since}"
+        try:
+            req = urllib.request.Request(
+                url, headers={"User-Agent": UA, "Accept": "application/x-ndjson"})
+            with urllib.request.urlopen(req, timeout=30) as r:
+                for raw in r:
+                    raw = raw.decode().strip()
+                    if not raw:
+                        continue
+                    g = json.loads(raw)
+                    gv = game_view(g, u)
+                    side = "white" if gv["we_white"] else "black"
+                    fam = opening_family(gv["opening"])
+                    rec = store[side].setdefault(fam, {"win": 0, "draw": 0, "loss": 0, "n": 0})
+                    rec[gv["res"]] += 1
+                    rec["n"] += 1
+                    created = g.get("createdAt", 0)
+                    if created + 1 > store["since"]:
+                        store["since"] = created + 1
+            _save_openings(store)
+        except Exception:
+            pass  # keep whatever we already have
+        return store
 
 
 def game_view(g, u):
@@ -526,24 +593,29 @@ def page():
   <div class="mut" style="margin-top:6px;font-size:12px">last {len(games)} games by color/speed</div>
 </div>"""
 
-    # ---- Openings card: group by family (name before the colon) -----------
-    fams = {}
-    for gv in games:
-        name = gv["opening"] or "Unknown"
-        fam = name.split(":")[0].split(",")[0].strip() or "Unknown"
-        f = fams.setdefault(fam, {"win": 0, "draw": 0, "loss": 0, "n": 0})
-        f[gv["res"]] += 1
-        f["n"] += 1
-    top = sorted(fams.items(), key=lambda kv: -kv[1]["n"])[:7]
-    op_rows = ""
-    for fam, r in top:
-        op_rows += (f'<div class="op"><div class="oprow"><span class="opname">{esc(fam)}</span>'
-                    f'<span class="opsc">{r["n"]}g &middot; {r["win"]}-{r["draw"]}-{r["loss"]} '
-                    f'&middot; {score_pct(r["win"],r["draw"],r["loss"])}</span></div>'
+    # ---- Openings card: all-time, split by color --------------------------
+    store = openings_store(u)
+
+    def opening_col(side_tally):
+        top = sorted(side_tally.items(), key=lambda kv: -kv[1]["n"])[:6]
+        if not top:
+            return '<div class="mut">no data yet</div>'
+        out = ""
+        for fam, r in top:
+            out += (f'<div class="op"><div class="oprow"><span class="opname">{esc(fam)}</span>'
+                    f'<span class="opsc">{r["n"]}g &middot; {r["win"]}-{r["draw"]}-{r["loss"]}</span></div>'
                     f'{wdl_bar(r["win"], r["draw"], r["loss"])}</div>')
+        return out
+
+    total_ops = sum(r["n"] for r in store["white"].values()) + \
+                sum(r["n"] for r in store["black"].values())
     openings = f"""
 <div class="card"><div class="cardhead"><span class="cardtitle">Openings</span>
-  <span class="mut">last {len(games)} games</span></div>{op_rows or '<div class="mut">no data yet</div>'}</div>"""
+  <span class="mut">all-time &middot; {total_ops} rated games</span></div>
+<div class="grid2">
+  <div><div class="statline lab" style="margin-bottom:4px">as White</div>{opening_col(store["white"])}</div>
+  <div><div class="statline lab" style="margin-bottom:4px">as Black</div>{opening_col(store["black"])}</div>
+</div></div>"""
 
     # ---- Recent games table -----------------------------------------------
     def when(ms):
