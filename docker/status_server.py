@@ -847,6 +847,7 @@ def page(view="all"):
         opening_short = (gv["opening"].split(":")[0] if gv["opening"] else "")
         rows += (f'<tr><td><a href="https://lichess.org/{esc(gv["id"])}">{esc(gv["speed"])}</a></td>'
                  f'<td>{opp_txt}</td>'
+                 f'<td class="mut">{"white" if gv["we_white"] else "black"}</td>'
                  f'<td class="mut">{esc(opening_short)}</td>'
                  f'<td class="{gv["res"] if gv["res"] != "draw" else ""}">{res}</td>'
                  f'<td class="mut">{when(gv["at"])}</td></tr>')
@@ -855,8 +856,8 @@ def page(view="all"):
   <span class="mut">{vlabel} &middot; download:
     <a href="/games.pgn?scope=recent">last 60</a> &middot;
     <a href="/games.pgn">all</a></span></div>
-<table><tr><th>Speed</th><th>Opponent</th><th>Opening</th><th>Result</th><th>When</th></tr>
-{rows or '<tr><td colspan="5" class="mut">no recent games in this group</td></tr>'}</table></div>"""
+<table><tr><th>Speed</th><th>Opponent</th><th>Color</th><th>Opening</th><th>Result</th><th>When</th></tr>
+{rows or '<tr><td colspan="6" class="mut">no recent games in this group</td></tr>'}</table></div>"""
 
     msg = supervisor.status
     supervisor.status = ""  # show once
