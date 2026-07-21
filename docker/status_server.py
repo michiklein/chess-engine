@@ -171,14 +171,40 @@ _openings_last = 0.0
 _openings_lock = threading.Lock()
 
 
+def _new_store():
+    return {"since": 0, "white": {}, "black": {}, "speed": {}, "buckets": {}, "vs": {}}
+
+
 def _load_openings():
     try:
         with open(OPENINGS_FILE) as f:
             s = json.load(f)
-            s.setdefault("speed", {})
+            for k in ("speed", "buckets", "vs"):
+                s.setdefault(k, {})
             return s
     except Exception:
-        return {"since": 0, "white": {}, "black": {}, "speed": {}}
+        return _new_store()
+
+
+def rating_bucket(r):
+    if r is None:
+        return None
+    if r < 1800:
+        return "<1800"
+    if r < 2000:
+        return "1800-1999"
+    if r < 2200:
+        return "2000-2199"
+    return "2200+"
+
+
+BUCKET_ORDER = ["<1800", "1800-1999", "2000-2199", "2200+"]
+
+
+def _bump(d, key, res):
+    rec = d.setdefault(key, {"win": 0, "draw": 0, "loss": 0, "n": 0})
+    rec[res] += 1
+    rec["n"] += 1
 
 
 def _save_openings(store):
@@ -215,13 +241,12 @@ def openings_store(u):
                     g = json.loads(raw)
                     gv = game_view(g, u)
                     side = "white" if gv["we_white"] else "black"
-                    fam = opening_family(gv["opening"])
-                    rec = store[side].setdefault(fam, {"win": 0, "draw": 0, "loss": 0, "n": 0})
-                    rec[gv["res"]] += 1
-                    rec["n"] += 1
-                    sp = store["speed"].setdefault(gv["speed"], {"win": 0, "draw": 0, "loss": 0, "n": 0})
-                    sp[gv["res"]] += 1
-                    sp["n"] += 1
+                    _bump(store[side], opening_family(gv["opening"]), gv["res"])
+                    _bump(store["speed"], gv["speed"], gv["res"])
+                    bucket = rating_bucket(gv["opp_rating"])
+                    if bucket:
+                        _bump(store["buckets"], bucket, gv["res"])
+                    _bump(store["vs"], "bot" if gv["opp_title"] == "BOT" else "human", gv["res"])
                     created = g.get("createdAt", 0)
                     if created + 1 > store["since"]:
                         store["since"] = created + 1
@@ -246,6 +271,7 @@ def game_view(g, u):
         "res": res, "we_white": we_white,
         "opp": them.get("user", {}).get("name", "?"),
         "opp_rating": them.get("rating"),
+        "opp_title": them.get("user", {}).get("title", ""),
         "diff": us.get("ratingDiff"),
         "speed": g.get("speed", "?"),
         "opening": (g.get("opening") or {}).get("name", ""),
@@ -522,7 +548,15 @@ def page():
                    if playing and game_id else "")
     ver = engine_version()
 
-    # Rating tiles with trend
+    # Peak rating per speed, from the rating history (cached fetch)
+    peaks = {}
+    hist = fetch(f"https://lichess.org/api/user/{u}/rating-history", ttl=300) or []
+    for h in hist:
+        pts = h.get("points", [])
+        if pts:
+            peaks[h.get("name")] = max(p[3] for p in pts)
+
+    # Rating tiles with trend + all-time peak
     perfs = user.get("perfs", {})
     tiles = ""
     for key, label in [("bullet", "Bullet"), ("blitz", "Blitz"),
@@ -534,9 +568,11 @@ def page():
         prog = p.get("prog", 0)
         trend = (f'<span class="up">&#9650;{prog}</span>' if prog > 0 else
                  f'<span class="down">&#9660;{-prog}</span>' if prog < 0 else "")
+        peak = peaks.get(label)
+        peak_txt = f" &middot; peak {peak}" if peak else ""
         tiles += (f'<div class="tile"><div class="k">{label}</div>'
                   f'<div class="v">{p.get("rating", "-")}{prov} {trend}</div>'
-                  f'<small class="mut">{p.get("games", 0)} games</small></div>')
+                  f'<small class="mut">{p.get("games", 0)} games{peak_txt}</small></div>')
     c = user.get("count", {})
     tiles += (f'<div class="tile"><div class="k">Games</div>'
               f'<div class="v">{c.get("all", 0)}</div>'
@@ -600,6 +636,30 @@ def page():
   <div class="mut" style="margin-top:6px;font-size:12px">all-time by color / speed</div>
 </div>"""
 
+    # ---- Opponents card: by rating strength + bots vs humans --------------
+    bucket_rows = ""
+    for b in BUCKET_ORDER:
+        r = store["buckets"].get(b)
+        if r:
+            bucket_rows += (f'<div class="op"><div class="oprow">'
+                            f'<span class="opname">vs {b}</span>'
+                            f'<span class="opsc">{r["n"]}g &middot; {r["win"]}-{r["draw"]}-{r["loss"]} '
+                            f'&middot; {score_pct(r["win"],r["draw"],r["loss"])}</span></div>'
+                            f'{wdl_bar(r["win"], r["draw"], r["loss"])}</div>')
+    vs_lines = ""
+    for who in ("human", "bot"):
+        r = store["vs"].get(who)
+        if r:
+            vs_lines += (f'<div class="statline"><span class="lab">vs {who}s</span> '
+                         f'&nbsp;<b>{r["win"]}-{r["draw"]}-{r["loss"]}</b> '
+                         f'<span class="mut">{score_pct(r["win"],r["draw"],r["loss"])}</span></div>')
+    opponents = f"""
+<div class="card"><div class="cardhead"><span class="cardtitle">Opponents</span>
+  <span class="mut">all-time</span></div>
+  {bucket_rows or '<div class="mut">no data yet</div>'}
+  <div style="margin-top:8px">{vs_lines}</div>
+</div>""" if bucket_rows or vs_lines else ""
+
     # ---- Openings card: all-time, split by color (reuses `store` above) ----
     def opening_col(side_tally):
         top = sorted(side_tally.items(), key=lambda kv: -kv[1]["n"])[:6]
@@ -614,9 +674,31 @@ def page():
 
     total_ops = sum(r["n"] for r in store["white"].values()) + \
                 sum(r["n"] for r in store["black"].values())
+
+    # Best/worst opening family by score, over families with enough games
+    combined = {}
+    for side in ("white", "black"):
+        for fam, r in store[side].items():
+            c2 = combined.setdefault(fam, {"win": 0, "draw": 0, "loss": 0, "n": 0})
+            for k in ("win", "draw", "loss", "n"):
+                c2[k] += r[k]
+    ranked = [(fam, r) for fam, r in combined.items() if r["n"] >= 4]
+    callout = ""
+    if ranked:
+        def sc(r):
+            return (r["win"] + r["draw"] / 2) / r["n"]
+        best = max(ranked, key=lambda kr: sc(kr[1]))
+        worst = min(ranked, key=lambda kr: sc(kr[1]))
+        callout = (f'<div class="statline" style="margin-bottom:8px">'
+                   f'<span class="up">best</span> {esc(best[0])} '
+                   f'<span class="mut">{score_pct(best[1]["win"],best[1]["draw"],best[1]["loss"])}</span>'
+                   f' &nbsp; <span class="down">worst</span> {esc(worst[0])} '
+                   f'<span class="mut">{score_pct(worst[1]["win"],worst[1]["draw"],worst[1]["loss"])}</span></div>')
+
     openings = f"""
 <div class="card"><div class="cardhead"><span class="cardtitle">Openings</span>
   <span class="mut">all-time &middot; {total_ops} games</span></div>
+{callout}
 <div class="grid2">
   <div><div class="statline lab" style="margin-bottom:4px">as White</div>{opening_col(store["white"])}</div>
   <div><div class="statline lab" style="margin-bottom:4px">as Black</div>{opening_col(store["black"])}</div>
@@ -662,6 +744,7 @@ def page():
 <div class="tiles">{tiles}</div>
 {chart_svg}
 {perf}
+{opponents}
 {openings}
 {games_table}
 <div class="foot">Auto-refreshes every 60s &middot; data from the public Lichess API</div>"""
