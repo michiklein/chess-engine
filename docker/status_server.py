@@ -221,12 +221,13 @@ _openings_last = 0.0
 _openings_lock = threading.Lock()
 
 
-STORE_VERSION = 3  # bump when the accumulated schema changes -> forces a rebuild
+STORE_VERSION = 4  # bump when the accumulated schema changes -> forces a rebuild
 
 
 def _new_sub():
     # one tally group, sliceable independently for all / bots / humans
-    return {"white": {}, "black": {}, "speed": {}, "buckets": {}}
+    return {"white": {}, "black": {}, "speed": {}, "buckets": {}, "opps": {},
+            "best_win": None, "worst_loss": None}
 
 
 def _new_store():
@@ -309,8 +310,17 @@ def openings_store(u):
                         sub = store[grp]
                         _bump(sub[side], fam, gv["res"])
                         _bump(sub["speed"], gv["speed"], gv["res"])
+                        _bump(sub["opps"], gv["opp"], gv["res"])
                         if bucket:
                             _bump(sub["buckets"], bucket, gv["res"])
+                        r = gv["opp_rating"]
+                        if r:
+                            if gv["res"] == "win" and \
+                                    (not sub["best_win"] or r > sub["best_win"]["rating"]):
+                                sub["best_win"] = {"rating": r, "opp": gv["opp"], "id": gv["id"]}
+                            if gv["res"] == "loss" and \
+                                    (not sub["worst_loss"] or r < sub["worst_loss"]["rating"]):
+                                sub["worst_loss"] = {"rating": r, "opp": gv["opp"], "id": gv["id"]}
                     created = g.get("createdAt", 0)
                     if created + 1 > store["since"]:
                         store["since"] = created + 1
@@ -675,6 +685,11 @@ def page(view="all"):
     sub = store[view]
     vlabel = {"all": "all-time", "bot": "vs bots", "human": "vs humans"}[view]
 
+    # Recent games filtered to the selected group
+    if view != "all":
+        games = [gv for gv in games
+                 if ("bot" if gv["opp_title"] == "BOT" else "human") == view]
+
     # ---- Performance card: overall + by color + by speed -------------------
     def color_totals(side):
         w = d = l = 0
@@ -738,11 +753,38 @@ def page(view="all"):
                             f'<span class="opsc">{r["n"]}g &middot; {r["win"]}-{r["draw"]}-{r["loss"]} '
                             f'&middot; {score_pct(r["win"],r["draw"],r["loss"])}</span></div>'
                             f'{wdl_bar(r["win"], r["draw"], r["loss"])}</div>')
+    # Extremes and favorite/least favorite opponents (min 5 games)
+    extra = ""
+    bw_ = sub.get("best_win")
+    if bw_:
+        extra += (f'<div class="statline"><span class="lab">highest rated win</span> '
+                  f'&nbsp;<b>{bw_["rating"]}</b> <a href="https://lichess.org/{esc(bw_["id"])}">'
+                  f'{esc(bw_["opp"])}</a></div>')
+    wl_ = sub.get("worst_loss")
+    if wl_:
+        extra += (f'<div class="statline"><span class="lab">lowest rated loss</span> '
+                  f'&nbsp;<b>{wl_["rating"]}</b> <a href="https://lichess.org/{esc(wl_["id"])}">'
+                  f'{esc(wl_["opp"])}</a></div>')
+    elig = [(name, r) for name, r in sub.get("opps", {}).items() if r["n"] >= 5]
+    if elig:
+        def opp_score(kv):
+            r = kv[1]
+            return (r["win"] + r["draw"] / 2) / r["n"]
+        fav = max(elig, key=opp_score)
+        nem = min(elig, key=opp_score)
+        if fav[0] != nem[0]:
+            for lab, (name, r) in (("favorite opponent", fav), ("least favorite", nem)):
+                extra += (f'<div class="statline"><span class="lab">{lab}</span> '
+                          f'&nbsp;{esc(name)} <b>{r["win"]}-{r["draw"]}-{r["loss"]}</b> '
+                          f'<span class="mut">{score_pct(r["win"],r["draw"],r["loss"])} '
+                          f'in {r["n"]}g</span></div>')
+
     opponents = f"""
 <div class="card"><div class="cardhead"><span class="cardtitle">Opponents by strength</span>
   <span class="mut">{vlabel}</span></div>
   {bucket_rows or '<div class="mut">no data yet</div>'}
-</div>""" if bucket_rows else ""
+  <div style="margin-top:8px">{extra}</div>
+</div>""" if bucket_rows or extra else ""
 
     # ---- Openings card: split by color (from the selected slice) ----------
     def opening_col(side_tally):
@@ -759,33 +801,29 @@ def page(view="all"):
     total_ops = sum(r["n"] for r in sub["white"].values()) + \
                 sum(r["n"] for r in sub["black"].values())
 
-    # Best/worst opening family by score, over families with enough games
-    combined = {}
-    for side in ("white", "black"):
-        for fam, r in sub[side].items():
-            c2 = combined.setdefault(fam, {"win": 0, "draw": 0, "loss": 0, "n": 0})
-            for k in ("win", "draw", "loss", "n"):
-                c2[k] += r[k]
-    ranked = [(fam, r) for fam, r in combined.items() if r["n"] >= 4]
-    callout = ""
-    if ranked:
+    # Best/worst opening family per color (families with enough games)
+    def callout(side_tally):
+        ranked = [(fam, r) for fam, r in side_tally.items() if r["n"] >= 4]
+        if not ranked:
+            return ""
         def sc(r):
             return (r["win"] + r["draw"] / 2) / r["n"]
         best = max(ranked, key=lambda kr: sc(kr[1]))
         worst = min(ranked, key=lambda kr: sc(kr[1]))
-        callout = (f'<div class="statline" style="margin-bottom:8px">'
-                   f'<span class="up">best</span> {esc(best[0])} '
-                   f'<span class="mut">{score_pct(best[1]["win"],best[1]["draw"],best[1]["loss"])}</span>'
-                   f' &nbsp; <span class="down">worst</span> {esc(worst[0])} '
-                   f'<span class="mut">{score_pct(worst[1]["win"],worst[1]["draw"],worst[1]["loss"])}</span></div>')
+        return (f'<div class="statline" style="margin-bottom:6px">'
+                f'<span class="up">best</span> {esc(best[0])} '
+                f'<span class="mut">{score_pct(best[1]["win"],best[1]["draw"],best[1]["loss"])}</span><br>'
+                f'<span class="down">worst</span> {esc(worst[0])} '
+                f'<span class="mut">{score_pct(worst[1]["win"],worst[1]["draw"],worst[1]["loss"])}</span></div>')
 
     openings = f"""
 <div class="card"><div class="cardhead"><span class="cardtitle">Openings</span>
   <span class="mut">{vlabel} &middot; {total_ops} games</span></div>
-{callout}
 <div class="grid2">
-  <div><div class="statline lab" style="margin-bottom:4px">as White</div>{opening_col(sub["white"])}</div>
-  <div><div class="statline lab" style="margin-bottom:4px">as Black</div>{opening_col(sub["black"])}</div>
+  <div><div class="statline lab" style="margin-bottom:4px">as White</div>
+    {callout(sub["white"])}{opening_col(sub["white"])}</div>
+  <div><div class="statline lab" style="margin-bottom:4px">as Black</div>
+    {callout(sub["black"])}{opening_col(sub["black"])}</div>
 </div></div>"""
 
     # ---- Recent games table -----------------------------------------------
@@ -813,8 +851,12 @@ def page(view="all"):
                  f'<td class="{gv["res"] if gv["res"] != "draw" else ""}">{res}</td>'
                  f'<td class="mut">{when(gv["at"])}</td></tr>')
     games_table = f"""
-<div class="card"><div class="cardhead"><span class="cardtitle">Recent games</span></div>
-<table><tr><th>Speed</th><th>Opponent</th><th>Opening</th><th>Result</th><th>When</th></tr>{rows}</table></div>"""
+<div class="card"><div class="cardhead"><span class="cardtitle">Recent games</span>
+  <span class="mut">{vlabel} &middot; download:
+    <a href="/games.pgn?scope=recent">last 60</a> &middot;
+    <a href="/games.pgn">all</a></span></div>
+<table><tr><th>Speed</th><th>Opponent</th><th>Opening</th><th>Result</th><th>When</th></tr>
+{rows or '<tr><td colspan="5" class="mut">no recent games in this group</td></tr>'}</table></div>"""
 
     msg = supervisor.status
     supervisor.status = ""  # show once
@@ -837,9 +879,15 @@ def page(view="all"):
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        parsed = urllib.parse.urlparse(self.path)
+        q = urllib.parse.parse_qs(parsed.query)
+
+        if parsed.path == "/games.pgn":
+            self.send_pgn(q.get("scope", ["all"])[0])
+            return
+
         view = "all"
-        q = urllib.parse.urlparse(self.path).query
-        vs = urllib.parse.parse_qs(q).get("vs", ["all"])[0]
+        vs = q.get("vs", ["all"])[0]
         if vs in ("all", "bot", "human"):
             view = vs
         body = f"""<!doctype html><html><head><meta charset="utf-8">
@@ -850,6 +898,32 @@ class Handler(BaseHTTPRequestHandler):
         data = body.encode()
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def send_pgn(self, scope):
+        """Stream the bot's games from Lichess as a PGN download."""
+        u = username()
+        if not u:
+            self.send_error(503, "not connected to lichess yet")
+            return
+        url = f"https://lichess.org/api/games/user/{u}?opening=true&evals=false"
+        name = f"{u}-all-games.pgn"
+        if scope == "recent":
+            url += "&max=60"
+            name = f"{u}-last-60.pgn"
+        try:
+            req = urllib.request.Request(
+                url, headers={"User-Agent": UA, "Accept": "application/x-chess-pgn"})
+            with urllib.request.urlopen(req, timeout=120) as r:
+                data = r.read()
+        except Exception as e:
+            self.send_error(502, f"lichess export failed: {e}")
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "application/x-chess-pgn")
+        self.send_header("Content-Disposition", f'attachment; filename="{name}"')
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
