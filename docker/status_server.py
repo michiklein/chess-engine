@@ -371,6 +371,21 @@ def build_chart(u):
     if not series:
         return ""
 
+    # Drop the first recorded day: early provisional ratings swing wildly
+    # and stretch the scale until the real trend is unreadable
+    if len(all_days) > 1:
+        cutoff = min(all_days) + 1
+        pruned = []
+        for s in series:
+            pts = {day: r for day, r in s["pts"].items() if day >= cutoff}
+            if pts:
+                pruned.append({**s, "pts": pts})
+        if pruned:
+            series = pruned
+            all_days = set()
+            for s in series:
+                all_days.update(s["pts"])
+
     today = datetime.date.today().toordinal()
     first = max(min(all_days), today - MAX_DAYS)
     days = list(range(first, today + 1))
