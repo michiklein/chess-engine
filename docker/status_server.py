@@ -174,9 +174,11 @@ _openings_lock = threading.Lock()
 def _load_openings():
     try:
         with open(OPENINGS_FILE) as f:
-            return json.load(f)
+            s = json.load(f)
+            s.setdefault("speed", {})
+            return s
     except Exception:
-        return {"since": 0, "white": {}, "black": {}}
+        return {"since": 0, "white": {}, "black": {}, "speed": {}}
 
 
 def _save_openings(store):
@@ -199,7 +201,7 @@ def openings_store(u):
         _openings_last = time.time()
         since = store.get("since", 0)
         url = (f"https://lichess.org/api/games/user/{u}"
-               f"?opening=true&sort=dateAsc&rated=true")
+               f"?opening=true&sort=dateAsc")
         if since:
             url += f"&since={since}"
         try:
@@ -217,6 +219,9 @@ def openings_store(u):
                     rec = store[side].setdefault(fam, {"win": 0, "draw": 0, "loss": 0, "n": 0})
                     rec[gv["res"]] += 1
                     rec["n"] += 1
+                    sp = store["speed"].setdefault(gv["speed"], {"win": 0, "draw": 0, "loss": 0, "n": 0})
+                    sp[gv["res"]] += 1
+                    sp["n"] += 1
                     created = g.get("createdAt", 0)
                     if created + 1 > store["since"]:
                         store["since"] = created + 1
@@ -539,9 +544,23 @@ def page():
 
     chart_svg = build_chart(u)
 
-    # ---- Performance card: overall bar + streak + by color + by speed ------
-    w, d, l = c.get("win", 0), c.get("draw", 0), c.get("loss", 0)
-    # streak from the recent games (newest first)
+    # All-time tallies (by opening, color, and speed), accumulated once
+    store = openings_store(u)
+
+    # ---- Performance card: all-time overall + by color + by speed ----------
+    def color_totals(side):
+        w = d = l = 0
+        for r in store[side].values():
+            w += r["win"]; d += r["draw"]; l += r["loss"]
+        return w, d, l
+
+    ww, wd, wl = color_totals("white")
+    bw, bd, bl = color_totals("black")
+    w, d, l = ww + bw, wd + bd, wl + bl
+    if w + d + l == 0:  # store not populated yet: fall back to the profile count
+        w, d, l = c.get("win", 0), c.get("draw", 0), c.get("loss", 0)
+
+    # Current streak from the recent games (newest first)
     streak_n, streak_res = 0, None
     for gv in games:
         if streak_res is None:
@@ -553,15 +572,6 @@ def page():
     streak_txt = (f'{streak_n} {streak_res}{"s" if streak_n != 1 else ""}'
                   if streak_res else "-")
 
-    def tally(pred):
-        r = {"win": 0, "draw": 0, "loss": 0}
-        for gv in games:
-            if pred(gv):
-                r[gv["res"]] += 1
-        return r["win"], r["draw"], r["loss"]
-
-    ww, wd, wl = tally(lambda g: g["we_white"])
-    bw, bd, bl = tally(lambda g: not g["we_white"])
     color_block = (
         f'<div><div class="statline"><span class="lab">as White</span> '
         f'&nbsp;<b>{ww}-{wd}-{wl}</b> <span class="mut">{score_pct(ww,wd,wl)}</span></div>'
@@ -570,14 +580,10 @@ def page():
         f'&nbsp;<b>{bw}-{bd}-{bl}</b> <span class="mut">{score_pct(bw,bd,bl)}</span></div>'
         f'{wdl_bar(bw, bd, bl)}</div>')
 
-    speeds = {}
-    for gv in games:
-        s = speeds.setdefault(gv["speed"], {"win": 0, "draw": 0, "loss": 0})
-        s[gv["res"]] += 1
     speed_lines = ""
     for s in ("bullet", "blitz", "rapid", "classical"):
-        if s in speeds:
-            r = speeds[s]
+        r = store["speed"].get(s)
+        if r:
             speed_lines += (f'<div class="statline"><span class="lab">{s}</span> '
                             f'&nbsp;<b>{r["win"]}-{r["draw"]}-{r["loss"]}</b> '
                             f'<span class="mut">{score_pct(r["win"],r["draw"],r["loss"])}</span></div>')
@@ -591,12 +597,10 @@ def page():
   {wdl_bar(w, d, l)}
   <div class="grid2" style="margin-top:10px">{color_block}</div>
   <div style="margin-top:8px">{speed_lines}</div>
-  <div class="mut" style="margin-top:6px;font-size:12px">last {len(games)} games by color/speed</div>
+  <div class="mut" style="margin-top:6px;font-size:12px">all-time by color / speed</div>
 </div>"""
 
-    # ---- Openings card: all-time, split by color --------------------------
-    store = openings_store(u)
-
+    # ---- Openings card: all-time, split by color (reuses `store` above) ----
     def opening_col(side_tally):
         top = sorted(side_tally.items(), key=lambda kv: -kv[1]["n"])[:6]
         if not top:
@@ -612,7 +616,7 @@ def page():
                 sum(r["n"] for r in store["black"].values())
     openings = f"""
 <div class="card"><div class="cardhead"><span class="cardtitle">Openings</span>
-  <span class="mut">all-time &middot; {total_ops} rated games</span></div>
+  <span class="mut">all-time &middot; {total_ops} games</span></div>
 <div class="grid2">
   <div><div class="statline lab" style="margin-bottom:4px">as White</div>{opening_col(store["white"])}</div>
   <div><div class="statline lab" style="margin-bottom:4px">as Black</div>{opening_col(store["black"])}</div>
