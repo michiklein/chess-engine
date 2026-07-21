@@ -38,6 +38,23 @@ LICHESS_BOT_TOKEN=<token with bot:play scope> docker compose up -d --build
 Start/stop the `chess-lichess-bot` container from the dashboard to take the
 bot on/offline. Bot settings live in `docker/config.yml`.
 
+### Automatic updates (Watchtower)
+
+ZimaOS's own update button is unreliable for custom `:latest` apps. For
+hands-off updates, run Watchtower once — it watches only the bot container
+and recreates it whenever a new image is published by CI:
+
+```bash
+sudo docker run -d --name watchtower --restart unless-stopped \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  containrrr/watchtower --cleanup --interval 300 kleinibot
+```
+
+After that, a `git push` here → CI build → the running bot updates itself
+within ~5 minutes. `--cleanup` removes superseded images so the disk stays
+tidy; naming `kleinibot` at the end scopes it to the bot only (other
+containers on the host are left alone).
+
 ## Test
 
 ```bash
