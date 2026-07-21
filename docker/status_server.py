@@ -509,11 +509,12 @@ def page():
                       {"Accept": "application/x-ndjson"}, ttl=60, ndjson=True) or []
     games = [game_view(g, u) for g in raw_games]
 
-    playing = st.get("playing")
+    playing = st.get("playing")            # boolean: is a game in progress
+    game_id = st.get("playingId")          # the game's id (withGameIds=true)
     state = ("playing" if playing else "online") if st.get("online") else "offline"
     dot = "dot on" if st.get("online") else "dot"
-    now_playing = (f' &middot; <a href="https://lichess.org/{esc(str(playing))}">watch live</a>'
-                   if playing else "")
+    now_playing = (f' &middot; <a href="https://lichess.org/{esc(str(game_id))}">watch live</a>'
+                   if playing and game_id else "")
     ver = engine_version()
 
     # Rating tiles with trend
