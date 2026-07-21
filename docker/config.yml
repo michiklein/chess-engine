@@ -42,21 +42,23 @@ challenge:
 
 greeting:
   hello: "Hi! I'm {me}, a from-scratch C++ engine. Good luck!"
-  goodbye: "Good game!"
+  goodbye: "Good game if I won, bad game if I lost, boring game if it was a draw."
   hello_spectators: "Hi! I'm {me}, a from-scratch C++ engine."
-  goodbye_spectators: "Thanks for watching!"
+  goodbye_spectators: "Hope you enjoyed watching :)"
 
 matchmaking:
   allow_matchmaking: true          # auto-challenge other bots when idle
   challenge_timeout: 3             # minutes of idling before it seeks a game
-  challenge_initial_time:          # time controls it offers (chosen at random)
-    - 60
-    - 180
-    - 300
-  challenge_increment:
+  challenge_initial_time:          # base times it offers (seconds, random pick)
+    - 60                           # 1+0 bullet
+    - 120                          # 2+1 bullet
+    - 180                          # 3+0, 3+2 blitz
+    - 300                          # 5+0, 5+3 blitz
+  challenge_increment:             # increments it offers (seconds, random pick)
     - 0
     - 1
     - 2
+    - 3
   challenge_mode: "rated"          # rated games so the rating establishes
-  opponent_rating_difference: 600
+  opponent_rating_difference: 1000
   challenge_filter: coarse         # don't re-spam bots that decline
