@@ -15,13 +15,15 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - id: vars
+        run: echo "sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
         with:
           context: .
           file: docker/Dockerfile
           push: true
           build-args: |
-            GIT_SHA=${{ github.sha }}
+            GIT_SHA=${{ steps.vars.outputs.sha }}
           tags: ghcr.io/${{ github.repository_owner }}/chess-engine:latest
 
   engine-binary:

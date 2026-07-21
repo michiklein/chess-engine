@@ -575,7 +575,6 @@ def page(view="all"):
     dot = "dot on" if st.get("online") else "dot"
     now_playing = (f' &middot; <a href="https://lichess.org/{esc(str(game_id))}">watch live</a>'
                    if playing and game_id else "")
-    ver = engine_version()
 
     # Peak rating per speed, from the rating history (cached fetch)
     peaks = {}
@@ -761,7 +760,7 @@ def page(view="all"):
 
     return f"""<h1><a href="https://lichess.org/@/{esc(u)}">{esc(u)}</a></h1>
 <div class="sub"><span class="{dot}"></span>{state}{now_playing}
-&middot; <span class="mut">engine {esc(ver)}</span></div>
+</div>
 {controls(running)}
 {msg_html}
 <div class="tiles">{tiles}</div>
