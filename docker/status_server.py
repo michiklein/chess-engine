@@ -586,7 +586,7 @@ table { width:100%; border-collapse:collapse; }
 th { text-align:left; color:var(--muted); font-size:12px; text-transform:uppercase;
      letter-spacing:.04em; font-weight:500; padding:4px 8px; }
 td { padding:6px 8px; border-top:1px solid var(--line); }
-td a { color:var(--accent); text-decoration:none; }
+.card a { color:var(--accent); text-decoration:none; }
 .win { color:var(--good); font-weight:600; } .loss { color:var(--bad); font-weight:600; }
 .mut { color:var(--muted); font-weight:400; font-size:13px; }
 .foot { color:var(--muted); font-size:12px; margin-top:18px; }
@@ -803,7 +803,7 @@ def page(view="all"):
 
     # Best/worst opening family per color (families with enough games)
     def callout(side_tally):
-        ranked = [(fam, r) for fam, r in side_tally.items() if r["n"] >= 4]
+        ranked = [(fam, r) for fam, r in side_tally.items() if r["n"] >= 10]
         if not ranked:
             return ""
         def sc(r):
