@@ -9,8 +9,9 @@ FROM debian:bookworm-slim AS build
 RUN apt-get update && \
     apt-get install -y --no-install-recommends g++ cmake make && \
     rm -rf /var/lib/apt/lists/*
+ARG GIT_SHA=dev
 COPY . /src
-RUN cmake -S /src -B /build -DCMAKE_BUILD_TYPE=Release && \
+RUN cmake -S /src -B /build -DCMAKE_BUILD_TYPE=Release -DGIT_SHA=${GIT_SHA} && \
     cmake --build /build --target chess_engine -j
 
 # --- Stage 2: lichess-bot bridge + engine --------------------------------

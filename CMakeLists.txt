@@ -12,6 +12,11 @@ endif()
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -Wall -Wextra")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 
+# Build id reported by the engine (id name ...); set by CI to the commit hash
+if(DEFINED GIT_SHA)
+    add_compile_definitions(GIT_SHA="${GIT_SHA}")
+endif()
+
 include_directories(src)
 
 set(COMMON_SOURCES

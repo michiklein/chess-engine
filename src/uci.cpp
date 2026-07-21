@@ -67,8 +67,12 @@ void UCIEngine::handleCommand(const std::string& command) {
     }
 }
 
+#ifndef GIT_SHA
+#define GIT_SHA "dev"   // overridden at build time with the short commit hash
+#endif
+
 void UCIEngine::handleUCI() {
-    std::cout << "id name ChessEngine v1.0" << std::endl;
+    std::cout << "id name ChessEngine " << GIT_SHA << std::endl;
     std::cout << "id author Chess Engine Project" << std::endl;
     std::cout << "uciok" << std::endl;
 }

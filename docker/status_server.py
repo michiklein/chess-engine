@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Status dashboard + process supervisor for the Lichess bot (stdlib only).
 
-Serves one HTML page: live state, rating tiles with trend, a rating-history
-chart, outcome breakdown, and recent games - all from the cached public
-Lichess API. Also supervises the lichess-bot process (start/stop buttons).
+One HTML page: live state, rating tiles + history chart, performance
+breakdowns (by color, speed, opening), recent games - all from the cached
+public Lichess API. Supervises the lichess-bot process (start/stop) and can
+hot-swap the engine binary from the latest GitHub release (update button).
 """
 import datetime
 import html
@@ -22,12 +23,21 @@ TOKEN = os.environ.get("LICHESS_BOT_TOKEN", "")
 PORT = int(os.environ.get("STATUS_PORT", "8087"))
 BOT_DIR = os.environ.get("BOT_DIR", "/lichess-bot")
 BOT_CMD = shlex.split(os.environ.get("BOT_CMD", "python lichess-bot.py"))
-UA = "chess-engine-status/2.0"
+ENGINE = os.environ.get("ENGINE_PATH", "/engine/chess_engine")
+ENGINE_URL = os.environ.get(
+    "ENGINE_URL",
+    "https://github.com/michiklein/chess-engine/releases/download/engine-latest/chess_engine")
+UA = "chess-engine-status/3.0"
 
 CHART_W, CHART_H = 640, 230
 PAD_L, PAD_R, PAD_T, PAD_B = 44, 14, 12, 26
 MAX_DAYS = 60
+NGAMES = 60  # games pulled for stats/openings
 
+
+# ---------------------------------------------------------------------------
+# Process supervision + engine hot-swap
+# ---------------------------------------------------------------------------
 
 class Supervisor:
     """Runs lichess-bot as a child process; restarts it if it crashes."""
@@ -36,6 +46,7 @@ class Supervisor:
         self.proc = None
         self.desired = True
         self.lock = threading.Lock()
+        self.status = ""  # transient message for the UI
         threading.Thread(target=self._watch, daemon=True).start()
 
     def alive(self):
@@ -68,6 +79,53 @@ class Supervisor:
 
 
 supervisor = Supervisor()
+
+
+def engine_version():
+    """Ask the engine binary for its 'id name' line (contains the build id)."""
+    try:
+        p = subprocess.run([ENGINE], input="uci\nquit\n", capture_output=True,
+                           text=True, timeout=5)
+        for line in p.stdout.splitlines():
+            if line.startswith("id name"):
+                return line[len("id name"):].strip()
+    except Exception:
+        pass
+    return "unknown"
+
+
+def update_engine():
+    """Download the latest release binary, validate it, and swap it in."""
+    was_running = supervisor.alive()
+    tmp = ENGINE + ".new"
+    try:
+        req = urllib.request.Request(ENGINE_URL, headers={"User-Agent": UA})
+        with urllib.request.urlopen(req, timeout=30) as r, open(tmp, "wb") as f:
+            f.write(r.read())
+        os.chmod(tmp, 0o755)
+        # Validate: it must speak UCI before we trust it
+        check = subprocess.run([tmp], input="uci\nquit\n", capture_output=True,
+                               text=True, timeout=5)
+        if "uciok" not in check.stdout:
+            raise RuntimeError("downloaded binary did not respond to uci")
+        supervisor.stop()
+        os.replace(tmp, ENGINE)
+        supervisor.status = "engine updated to " + engine_version()
+    except Exception as e:
+        supervisor.status = "update failed: " + str(e)
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+    finally:
+        if was_running:
+            supervisor.start()
+
+
+# ---------------------------------------------------------------------------
+# Lichess API (cached)
+# ---------------------------------------------------------------------------
+
 _cache: dict = {}
 
 
@@ -101,8 +159,31 @@ def username():
     return _username
 
 
+def game_view(g, u):
+    """Normalize one game to our perspective: (result, we_white, opp, opp_rating)."""
+    players = g.get("players", {})
+    white, black = players.get("white", {}), players.get("black", {})
+    we_white = white.get("user", {}).get("name", "").lower() == u.lower()
+    us, them = (white, black) if we_white else (black, white)
+    winner = g.get("winner")
+    if not winner:
+        res = "draw"
+    else:
+        res = "win" if (winner == "white") == we_white else "loss"
+    return {
+        "res": res, "we_white": we_white,
+        "opp": them.get("user", {}).get("name", "?"),
+        "opp_rating": them.get("rating"),
+        "diff": us.get("ratingDiff"),
+        "speed": g.get("speed", "?"),
+        "opening": (g.get("opening") or {}).get("name", ""),
+        "id": g.get("id", ""),
+        "at": g.get("lastMoveAt") or g.get("createdAt"),
+    }
+
+
 # ---------------------------------------------------------------------------
-# Rating history chart (server-rendered SVG + tiny hover script)
+# Rating history chart (server-rendered SVG + hover script)
 # ---------------------------------------------------------------------------
 
 SERIES_SLOTS = [("Bullet", "--s1"), ("Blitz", "--s2"), ("Rapid", "--s3")]
@@ -111,33 +192,29 @@ SERIES_SLOTS = [("Bullet", "--s1"), ("Blitz", "--s2"), ("Rapid", "--s3")]
 def build_chart(u):
     hist = fetch(f"https://lichess.org/api/user/{u}/rating-history", ttl=300)
     if not hist:
-        return "", ""
+        return ""
     by_name = {h.get("name"): h.get("points", []) for h in hist}
 
-    # Collect per-series points as day -> rating (lichess months are 0-based)
-    series = []
-    all_days = set()
+    series, all_days = [], set()
     for name, var in SERIES_SLOTS:
         pts = {}
         for y, m, d, r in by_name.get(name, []):
             try:
-                day = datetime.date(y, m + 1, d).toordinal()
+                pts[datetime.date(y, m + 1, d).toordinal()] = r
             except ValueError:
                 continue
-            pts[day] = r
         if pts:
             series.append({"name": name, "var": var, "pts": pts})
             all_days.update(pts)
-    if not series or len(all_days) < 1:
-        return "", ""
+    if not series:
+        return ""
 
     today = datetime.date.today().toordinal()
     first = max(min(all_days), today - MAX_DAYS)
     days = list(range(first, today + 1))
     if len(days) < 2:
-        days = [first - 1, first]  # degenerate but renderable
+        days = [first - 1, first]
 
-    # Forward-fill each series over the day grid (rating is flat between games)
     values_all = []
     for s in series:
         vals, cur = [], None
@@ -158,7 +235,6 @@ def build_chart(u):
     def y(v):
         return PAD_T + (CHART_H - PAD_T - PAD_B) * (1 - (v - lo) / (hi - lo))
 
-    # Recessive grid: 4 horizontal lines at round rating values
     grid, step = "", max(25, round(span / 3 / 25) * 25)
     tick = int(lo // step + 1) * step
     while tick < hi:
@@ -166,27 +242,23 @@ def build_chart(u):
         grid += (f'<line x1="{PAD_L}" y1="{gy}" x2="{CHART_W - PAD_R}" y2="{gy}" class="grid"/>'
                  f'<text x="{PAD_L - 6}" y="{gy + 3.5}" class="tick" text-anchor="end">{tick}</text>')
         tick += step
-
-    # A few x-axis date labels
     for i in range(0, len(days), max(len(days) // 4, 1)):
         d = datetime.date.fromordinal(days[i])
         grid += (f'<text x="{round(x(i), 1)}" y="{CHART_H - 8}" class="tick" '
                  f'text-anchor="middle">{d.strftime("%b %d")}</text>')
 
-    lines, dots, labels, data_series = "", "", "", []
+    lines, dots, labels = "", "", ""
     for s in series:
         pts = [(round(x(i), 1), round(y(v), 1)) for i, v in enumerate(s["vals"]) if v is not None]
         if not pts:
             continue
         poly = " ".join(f"{px},{py}" for px, py in pts)
         lines += f'<polyline points="{poly}" style="stroke:var({s["var"]})" class="sline"/>'
-        # direct label at the line end: ink text next to a colored mark
         ex, ey = pts[-1]
         labels += (f'<circle cx="{ex}" cy="{ey}" r="3" style="fill:var({s["var"]})"/>'
                    f'<text x="{ex - 4}" y="{ey - 7}" class="slabel" text-anchor="end">{s["name"]}</text>')
         dots += (f'<circle id="dot-{s["name"]}" r="4" style="fill:var({s["var"]})" '
                  f'class="hoverdot" visibility="hidden"/>')
-        data_series.append({"name": s["name"], "vals": s["vals"], "var": s["var"]})
 
     chart_data = json.dumps({
         "days": [datetime.date.fromordinal(d).strftime("%b %d") for d in days],
@@ -194,13 +266,12 @@ def build_chart(u):
         "ys": {s["name"]: [round(y(v), 1) if v is not None else None for v in s["vals"]]
                for s in series},
         "series": [{"name": s["name"], "vals": s["vals"]} for s in series],
-        "padT": PAD_T, "plotB": CHART_H - PAD_B,
     })
 
     legend = "".join(f'<span class="chip" style="background:var({s["var"]})"></span>'
                      f'<span class="lgname">{s["name"]}</span>' for s in series)
 
-    svg = f"""
+    return f"""
 <div class="card">
   <div class="cardhead"><span class="cardtitle">Rating</span><span class="legend">{legend}</span></div>
   <div class="chartwrap">
@@ -215,7 +286,6 @@ def build_chart(u):
   </div>
 </div>
 <script id="chart-data" type="application/json">{chart_data}</script>"""
-    return svg, chart_data
 
 
 CHART_JS = """
@@ -247,8 +317,7 @@ CHART_JS = """
       dot.setAttribute('visibility', 'visible');
       rows += '<div>' + s.name + ': <b>' + s.vals[i] + '</b></div>';
     });
-    tip.innerHTML = rows;
-    tip.style.display = 'block';
+    tip.innerHTML = rows; tip.style.display = 'block';
     const wrap = svg.parentElement.getBoundingClientRect();
     let lx = e.clientX - wrap.left + 14;
     if (lx > wrap.width - 120) lx = e.clientX - wrap.left - 130;
@@ -282,12 +351,13 @@ h1 { font-size:22px; } h1 a { color:inherit; text-decoration:none; }
 .dot { display:inline-block; width:9px; height:9px; border-radius:50%;
        background:var(--muted); margin-right:5px; }
 .dot.on { background:var(--good); }
-.controls { display:flex; gap:8px; margin-bottom:18px; }
+.controls { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
 .controls form { display:inline; }
 button { font:14px system-ui; padding:6px 14px; border-radius:6px; cursor:pointer;
          border:1px solid var(--line); background:transparent; color:var(--ink); }
 button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
-.chipstate { font-size:13px; color:var(--muted); align-self:center; margin-left:4px; }
+.chipstate { font-size:13px; color:var(--muted); align-self:center; }
+.msg { font-size:13px; color:var(--accent); margin-bottom:14px; min-height:1px; }
 .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
          gap:10px; margin-bottom:14px; }
 .tile { border:1px solid var(--line); border-radius:8px; padding:10px 12px; }
@@ -312,11 +382,15 @@ button.primary { background:var(--accent); border-color:var(--accent); color:#ff
 #tip { position:absolute; display:none; pointer-events:none; background:var(--surface);
        border:1px solid var(--line); border-radius:6px; padding:6px 9px; font-size:12px;
        box-shadow:0 2px 8px rgba(0,0,0,.12); min-width:100px; }
-.bar { display:flex; gap:2px; height:14px; border-radius:4px; overflow:hidden; margin:8px 0 6px; }
-.bar span { display:block; }
+.bar { display:flex; gap:2px; height:12px; border-radius:4px; overflow:hidden; margin:6px 0; }
+.bar span { display:block; min-width:1px; }
 .bar .w { background:var(--good); } .bar .d { background:var(--muted); } .bar .l { background:var(--bad); }
-.barlabels { font-size:13px; color:var(--muted); }
-.barlabels b { color:var(--ink); }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px 20px; }
+.statline { font-size:14px; } .statline .lab { color:var(--muted); }
+.statline b { font-variant-numeric:tabular-nums; }
+.op { margin:9px 0; } .oprow { display:flex; justify-content:space-between; font-size:14px; }
+.opname { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.opsc { color:var(--muted); font-size:13px; flex:none; margin-left:10px; }
 table { width:100%; border-collapse:collapse; }
 th { text-align:left; color:var(--muted); font-size:12px; text-transform:uppercase;
      letter-spacing:.04em; font-weight:500; padding:4px 8px; }
@@ -328,37 +402,54 @@ td a { color:var(--accent); text-decoration:none; }
 """
 
 
-def controls():
-    running = supervisor.alive()
+def wdl_bar(w, d, l):
+    t = max(w + d + l, 1)
+    return (f'<div class="bar"><span class="w" style="width:{100*w/t:.1f}%"></span>'
+            f'<span class="d" style="width:{100*d/t:.1f}%"></span>'
+            f'<span class="l" style="width:{100*l/t:.1f}%"></span></div>')
+
+
+def score_pct(w, d, l):
+    t = max(w + d + l, 1)
+    return f"{100 * (w + d / 2) / t:.0f}%"
+
+
+def controls(running):
     if running:
         buttons = ('<form method="post" action="/stop"><button>stop bot</button></form>'
                    '<form method="post" action="/restart"><button>restart bot</button></form>')
     else:
         buttons = '<form method="post" action="/start"><button class="primary">start bot</button></form>'
-    chip = "bot process: running" if running else "bot process: stopped"
-    return f'<div class="controls">{buttons}<span class="chipstate">{chip}</span></div>'
+    buttons += ('<form method="post" action="/update-engine" '
+                'onsubmit="return confirm(\'Download the latest engine and restart?\')">'
+                '<button>update engine</button></form>')
+    chip = "running" if running else "stopped"
+    return f'<div class="controls">{buttons}<span class="chipstate">bot: {chip}</span></div>'
 
 
 def page():
     u = username()
+    running = supervisor.alive()
     if not u:
         return ("<h1>chess-engine bot</h1><p>Waiting for Lichess connection "
-                "(no username yet - is LICHESS_BOT_TOKEN set?)</p>" + controls())
+                "(no username yet - is LICHESS_BOT_TOKEN set?)</p>" + controls(running))
 
     esc = html.escape
     user = fetch(f"https://lichess.org/api/user/{u}", ttl=60) or {}
     status = fetch(f"https://lichess.org/api/users/status?ids={u}&withGameIds=true", ttl=15)
     st = status[0] if status else {}
-    games = fetch(f"https://lichess.org/api/games/user/{u}?max=12",
-                  {"Accept": "application/x-ndjson"}, ttl=60, ndjson=True) or []
+    raw_games = fetch(f"https://lichess.org/api/games/user/{u}?max={NGAMES}&opening=true",
+                      {"Accept": "application/x-ndjson"}, ttl=60, ndjson=True) or []
+    games = [game_view(g, u) for g in raw_games]
 
     playing = st.get("playing")
     state = ("playing" if playing else "online") if st.get("online") else "offline"
     dot = "dot on" if st.get("online") else "dot"
-    now_playing = (f' - <a href="https://lichess.org/{esc(str(playing))}">watch live</a>'
+    now_playing = (f' &middot; <a href="https://lichess.org/{esc(str(playing))}">watch live</a>'
                    if playing else "")
+    ver = engine_version()
 
-    # Rating tiles with recent trend
+    # Rating tiles with trend
     perfs = user.get("perfs", {})
     tiles = ""
     for key, label in [("bullet", "Bullet"), ("blitz", "Blitz"),
@@ -373,78 +464,130 @@ def page():
         tiles += (f'<div class="tile"><div class="k">{label}</div>'
                   f'<div class="v">{p.get("rating", "-")}{prov} {trend}</div>'
                   f'<small class="mut">{p.get("games", 0)} games</small></div>')
-
     c = user.get("count", {})
     tiles += (f'<div class="tile"><div class="k">Games</div>'
               f'<div class="v">{c.get("all", 0)}</div>'
               f'<small class="mut">{c.get("rated", 0)} rated</small></div>')
 
-    chart_svg, _ = build_chart(u)
+    chart_svg = build_chart(u)
 
-    # Outcome breakdown bar (labels carry the meaning; color is reinforcement)
+    # ---- Performance card: overall bar + streak + by color + by speed ------
     w, d, l = c.get("win", 0), c.get("draw", 0), c.get("loss", 0)
-    total = max(w + d + l, 1)
-    outcome = f"""
-<div class="card"><div class="cardhead"><span class="cardtitle">Outcomes</span></div>
-<div class="bar">
-  <span class="w" style="width:{100 * w / total:.1f}%"></span>
-  <span class="d" style="width:{100 * d / total:.1f}%"></span>
-  <span class="l" style="width:{100 * l / total:.1f}%"></span>
-</div>
-<div class="barlabels"><b>{w}</b> wins &middot; <b>{d}</b> draws &middot; <b>{l}</b> losses
-&middot; {100 * w / total:.0f}% won</div></div>"""
+    # streak from the recent games (newest first)
+    streak_n, streak_res = 0, None
+    for gv in games:
+        if streak_res is None:
+            streak_res = gv["res"]
+        if gv["res"] == streak_res:
+            streak_n += 1
+        else:
+            break
+    streak_txt = (f'{streak_n} {streak_res}{"s" if streak_n != 1 else ""}'
+                  if streak_res else "-")
 
+    def tally(pred):
+        r = {"win": 0, "draw": 0, "loss": 0}
+        for gv in games:
+            if pred(gv):
+                r[gv["res"]] += 1
+        return r["win"], r["draw"], r["loss"]
+
+    ww, wd, wl = tally(lambda g: g["we_white"])
+    bw, bd, bl = tally(lambda g: not g["we_white"])
+    color_block = (
+        f'<div><div class="statline"><span class="lab">as White</span> '
+        f'&nbsp;<b>{ww}-{wd}-{wl}</b> <span class="mut">{score_pct(ww,wd,wl)}</span></div>'
+        f'{wdl_bar(ww, wd, wl)}</div>'
+        f'<div><div class="statline"><span class="lab">as Black</span> '
+        f'&nbsp;<b>{bw}-{bd}-{bl}</b> <span class="mut">{score_pct(bw,bd,bl)}</span></div>'
+        f'{wdl_bar(bw, bd, bl)}</div>')
+
+    speeds = {}
+    for gv in games:
+        s = speeds.setdefault(gv["speed"], {"win": 0, "draw": 0, "loss": 0})
+        s[gv["res"]] += 1
+    speed_lines = ""
+    for s in ("bullet", "blitz", "rapid", "classical"):
+        if s in speeds:
+            r = speeds[s]
+            speed_lines += (f'<div class="statline"><span class="lab">{s}</span> '
+                            f'&nbsp;<b>{r["win"]}-{r["draw"]}-{r["loss"]}</b> '
+                            f'<span class="mut">{score_pct(r["win"],r["draw"],r["loss"])}</span></div>')
+
+    perf = f"""
+<div class="card">
+  <div class="cardhead"><span class="cardtitle">Performance</span>
+    <span class="mut">streak: {streak_txt}</span></div>
+  <div class="statline"><b>{w}</b> wins &middot; <b>{d}</b> draws &middot; <b>{l}</b> losses
+    &middot; {score_pct(w,d,l)} score</div>
+  {wdl_bar(w, d, l)}
+  <div class="grid2" style="margin-top:10px">{color_block}</div>
+  <div style="margin-top:8px">{speed_lines}</div>
+  <div class="mut" style="margin-top:6px;font-size:12px">last {len(games)} games by color/speed</div>
+</div>"""
+
+    # ---- Openings card: group by family (name before the colon) -----------
+    fams = {}
+    for gv in games:
+        name = gv["opening"] or "Unknown"
+        fam = name.split(":")[0].split(",")[0].strip() or "Unknown"
+        f = fams.setdefault(fam, {"win": 0, "draw": 0, "loss": 0, "n": 0})
+        f[gv["res"]] += 1
+        f["n"] += 1
+    top = sorted(fams.items(), key=lambda kv: -kv[1]["n"])[:7]
+    op_rows = ""
+    for fam, r in top:
+        op_rows += (f'<div class="op"><div class="oprow"><span class="opname">{esc(fam)}</span>'
+                    f'<span class="opsc">{r["n"]}g &middot; {r["win"]}-{r["draw"]}-{r["loss"]} '
+                    f'&middot; {score_pct(r["win"],r["draw"],r["loss"])}</span></div>'
+                    f'{wdl_bar(r["win"], r["draw"], r["loss"])}</div>')
+    openings = f"""
+<div class="card"><div class="cardhead"><span class="cardtitle">Openings</span>
+  <span class="mut">last {len(games)} games</span></div>{op_rows or '<div class="mut">no data yet</div>'}</div>"""
+
+    # ---- Recent games table -----------------------------------------------
     def when(ms):
         if not ms:
             return ""
-        dt = datetime.datetime.fromtimestamp(ms / 1000)
         mins = (time.time() - ms / 1000) / 60
         if mins < 60:
             return f"{int(mins)}m ago"
         if mins < 60 * 24:
             return f"{int(mins // 60)}h ago"
-        return dt.strftime("%b %d")
+        return datetime.datetime.fromtimestamp(ms / 1000).strftime("%b %d")
 
     rows = ""
-    for g in games:
-        players = g.get("players", {})
-        white, black = players.get("white", {}), players.get("black", {})
-        we_are_white = white.get("user", {}).get("name", "").lower() == u.lower()
-        us, them = (white, black) if we_are_white else (black, white)
-        opp = them.get("user", {}).get("name", "?")
-        opp_rating = them.get("rating")
-        opp_txt = f'{esc(opp)} <span class="mut">({opp_rating})</span>' if opp_rating else esc(opp)
-        winner = g.get("winner")
-        if not winner:
-            res, cls = "draw", ""
-        elif (winner == "white") == we_are_white:
-            res, cls = "win", "win"
-        else:
-            res, cls = "loss", "loss"
-        diff = us.get("ratingDiff")
-        if diff is not None:
-            res += f' <span class="mut">{"+" if diff >= 0 else ""}{diff}</span>'
-        gid = g.get("id", "")
-        rows += (f'<tr><td><a href="https://lichess.org/{esc(gid)}">'
-                 f'{esc(g.get("speed", "?"))}</a></td>'
+    for gv in games[:12]:
+        opp_txt = (f'{esc(gv["opp"])} <span class="mut">({gv["opp_rating"]})</span>'
+                   if gv["opp_rating"] else esc(gv["opp"]))
+        res = gv["res"]
+        if gv["diff"] is not None:
+            res += f' <span class="mut">{"+" if gv["diff"] >= 0 else ""}{gv["diff"]}</span>'
+        opening_short = (gv["opening"].split(":")[0] if gv["opening"] else "")
+        rows += (f'<tr><td><a href="https://lichess.org/{esc(gv["id"])}">{esc(gv["speed"])}</a></td>'
                  f'<td>{opp_txt}</td>'
-                 f'<td>{"white" if we_are_white else "black"}</td>'
-                 f'<td class="{cls}">{res}</td>'
-                 f'<td class="mut">{when(g.get("lastMoveAt") or g.get("createdAt"))}</td></tr>')
-
+                 f'<td class="mut">{esc(opening_short)}</td>'
+                 f'<td class="{gv["res"] if gv["res"] != "draw" else ""}">{res}</td>'
+                 f'<td class="mut">{when(gv["at"])}</td></tr>')
     games_table = f"""
 <div class="card"><div class="cardhead"><span class="cardtitle">Recent games</span></div>
-<table><tr><th>Game</th><th>Opponent</th><th>Color</th><th>Result</th><th>When</th></tr>{rows}</table></div>"""
+<table><tr><th>Speed</th><th>Opponent</th><th>Opening</th><th>Result</th><th>When</th></tr>{rows}</table></div>"""
+
+    msg = supervisor.status
+    supervisor.status = ""  # show once
+    msg_html = f'<div class="msg">{esc(msg)}</div>' if msg else ""
 
     return f"""<h1><a href="https://lichess.org/@/{esc(u)}">{esc(u)}</a></h1>
-<div class="sub"><span class="{dot}"></span>{state}{now_playing}</div>
-{controls()}
+<div class="sub"><span class="{dot}"></span>{state}{now_playing}
+&middot; <span class="mut">engine {esc(ver)}</span></div>
+{controls(running)}
+{msg_html}
 <div class="tiles">{tiles}</div>
 {chart_svg}
-{outcome}
+{perf}
+{openings}
 {games_table}
-<div class="foot">Auto-refreshes every 60s - data from the public Lichess API -
-to update the engine run ./bot.sh update-app on the server</div>"""
+<div class="foot">Auto-refreshes every 60s &middot; data from the public Lichess API</div>"""
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -469,11 +612,14 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/restart":
             supervisor.stop()
             supervisor.start()
+        elif self.path == "/update-engine":
+            threading.Thread(target=update_engine, daemon=True).start()
+            supervisor.status = "updating engine..."
         self.send_response(303)
         self.send_header("Location", "/")
         self.end_headers()
 
-    def log_message(self, *args):  # keep the container log clean
+    def log_message(self, *args):
         pass
 
 
@@ -483,7 +629,7 @@ def shutdown(*_):
 
 
 if __name__ == "__main__":
-    signal.signal(signal.SIGTERM, shutdown)  # docker stop: quit bot cleanly
+    signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)
     supervisor.start()
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()

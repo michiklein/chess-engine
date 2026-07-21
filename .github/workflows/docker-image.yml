@@ -3,10 +3,10 @@ on:
   push:
     branches: [main]
 permissions:
-  contents: read
+  contents: write     # needed to publish the engine-latest release
   packages: write
 jobs:
-  build:
+  image:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,4 +20,28 @@ jobs:
           context: .
           file: docker/Dockerfile
           push: true
+          build-args: |
+            GIT_SHA=${{ github.sha }}
           tags: ghcr.io/${{ github.repository_owner }}/chess-engine:latest
+
+  engine-binary:
+    # Publishes a standalone Linux engine binary that the dashboard's
+    # "update engine" button hot-swaps into the running container.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile engine
+        run: |
+          SHA=$(git rev-parse --short HEAD)
+          g++ -std=c++17 -O3 -DNDEBUG -DGIT_SHA="\"$SHA\"" -Isrc \
+            src/main.cpp src/uci.cpp src/board.cpp src/movegen.cpp \
+            src/search.cpp src/opening_book.cpp src/eco_book.cpp \
+            -static -o chess_engine
+          ./chess_engine <<< "uci" | grep -q uciok
+      - name: Publish to engine-latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: engine-latest
+          name: Latest engine binary
+          files: chess_engine
+          fail_on_unmatched_files: true
