@@ -789,7 +789,8 @@ def page(view="all"):
             streak_n += 1
         else:
             break
-    streak_txt = (f'{streak_n} {streak_res}{"s" if streak_n != 1 else ""}'
+    streak_plurals = {"win": "wins", "draw": "draws", "loss": "losses"}
+    streak_txt = (f'{streak_n} {streak_res if streak_n == 1 else streak_plurals[streak_res]}'
                   if streak_res else "-")
 
     color_block = (
