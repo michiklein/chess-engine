@@ -21,17 +21,19 @@ rate_limiting_delay: 0
 move_overhead: 1000                # network + bridge latency buffer per move
 
 challenge:
-  concurrency: 1                   # one game at a time
+  concurrency: 3                   # accept up to 3 games at once (shares the CPU cap)
   sort_by: "best"
-  accept_bot: true
+  accept_bot: true                 # accept bots and humans
   only_bot: false
-  max_increment: 20
+  max_increment: 180               # any increment Lichess allows
   min_increment: 0
-  max_base: 1800
+  max_base: 10800                  # any base time Lichess allows (up to 3h)
   min_base: 0
   variants:
-    - standard
-  time_controls:
+    - standard                     # the engine only plays standard chess -
+    #                                variants would force illegal moves, so
+    #                                do not add chess960/atomic/etc. here
+  time_controls:                   # every standard speed (bots can't play ultraBullet)
     - bullet
     - blitz
     - rapid
