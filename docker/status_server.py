@@ -345,6 +345,18 @@ def openings_store(u):
         return store
 
 
+def format_clock(g):
+    """Exact time control like lichess shows it: "3+2", "15+10", or the
+    speed name (correspondence, etc.) when there is no clock."""
+    clock = g.get("clock")
+    if not clock:
+        return g.get("speed", "?")
+    initial, inc = clock.get("initial", 0), clock.get("increment", 0)
+    minutes = initial / 60
+    m_txt = str(int(minutes)) if minutes == int(minutes) else f"{minutes:g}"
+    return f"{m_txt}+{inc}"
+
+
 def game_view(g, u):
     """Normalize one game to our perspective: (result, we_white, opp, opp_rating)."""
     players = g.get("players", {})
@@ -363,6 +375,7 @@ def game_view(g, u):
         "opp_title": them.get("user", {}).get("title", ""),
         "diff": us.get("ratingDiff"),
         "speed": g.get("speed", "?"),
+        "clock": format_clock(g),
         "opening": (g.get("opening") or {}).get("name", ""),
         "id": g.get("id", ""),
         "at": g.get("lastMoveAt") or g.get("createdAt"),
@@ -923,7 +936,7 @@ def page(view="all"):
         if gv["diff"] is not None:
             res += f' <span class="mut">{"+" if gv["diff"] >= 0 else ""}{gv["diff"]}</span>'
         opening_short = (gv["opening"].split(":")[0] if gv["opening"] else "")
-        rows += (f'<tr><td><a href="https://lichess.org/{esc(gv["id"])}">{esc(gv["speed"])}</a></td>'
+        rows += (f'<tr><td>{esc(gv["clock"])}</td>'
                  f'<td>{opp_txt}</td>'
                  f'<td class="mut">{"white" if gv["we_white"] else "black"}</td>'
                  f'<td class="mut">{esc(opening_short)}</td>'
@@ -931,10 +944,11 @@ def page(view="all"):
                  f'<td class="mut">{when(gv["at"])}</td></tr>')
     games_table = f"""
 <div class="card"><div class="cardhead"><span class="cardtitle">Recent games</span>
-  <span class="mut">{vlabel} &middot; download:
-    <a href="/games.pgn?scope=recent">last 60</a> &middot;
+  <span class="mut">{vlabel} &middot;
+    <a href="https://lichess.org/@/{esc(u)}/all" target="_blank" rel="noopener">all games on lichess</a>
+    &middot; download: <a href="/games.pgn?scope=recent">last 60</a> &middot;
     <a href="/games.pgn">all</a></span></div>
-<table><tr><th>Speed</th><th>Opponent</th><th>Color</th><th>Opening</th><th>Result</th><th>When</th></tr>
+<table><tr><th>Time control</th><th>Opponent</th><th>Color</th><th>Opening</th><th>Result</th><th>When</th></tr>
 {rows or '<tr><td colspan="6" class="mut">no recent games in this group</td></tr>'}</table></div>"""
 
     msg = supervisor.status
