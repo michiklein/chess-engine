@@ -24,7 +24,7 @@ bool OpeningBook::loadEmbedded() {
 
 bool OpeningBook::parseStream(std::istream& file, const std::string& sourceName) {
     std::string line;
-    std::vector<std::string> currentMoves;
+    std::vector<std::pair<std::string, int>> currentMoves;  // move, explicit weight (-1 = none)
     bool inGame = false;
 
     while (std::getline(file, line)) {
@@ -46,11 +46,25 @@ bool OpeningBook::parseStream(std::istream& file, const std::string& sourceName)
         while (iss >> token) {
             if (token.back() == '.') continue;
             if (token == "1-0" || token == "0-1" || token == "1/2-1/2" || token == "*") continue;
-            if (token.empty() || token[0] == '{' || token[0] == ';' || token[0] == '$') continue;
+            if (token[0] == '$') {
+                // An explicit weight for the move just pushed, e.g.
+                // "e2e4 $1309466" (a real master-game count). Real NAG
+                // annotations in a hand-annotated PGN would also match this
+                // and set a small weight override instead of being skipped -
+                // harmless for the embedded book (which we generate
+                // ourselves) and a minor curiosity at most for a manually
+                // dropped override file.
+                if (!currentMoves.empty()) {
+                    try { currentMoves.back().second = std::stoi(token.substr(1)); }
+                    catch (...) {}
+                }
+                continue;
+            }
+            if (token.empty() || token[0] == '{' || token[0] == ';') continue;
             while (!token.empty() && (token.back() == '!' || token.back() == '?' ||
                                       token.back() == '+' || token.back() == '#'))
                 token.pop_back();
-            if (!token.empty()) currentMoves.push_back(token);
+            if (!token.empty()) currentMoves.emplace_back(token, -1);
         }
     }
 
@@ -62,26 +76,26 @@ bool OpeningBook::parseStream(std::istream& file, const std::string& sourceName)
     return !book.empty();
 }
 
-void OpeningBook::processGame(const std::vector<std::string>& moves) {
+void OpeningBook::processGame(const std::vector<std::pair<std::string, int>>& moves) {
     Board board;
-    for (const std::string& moveStr : moves) {
-        Move move = parseMove(moveStr, board);
+    for (const auto& mv : moves) {
+        Move move = parseMove(mv.first, board);
         if (move.from == move.to && move.from == 0) return;
-        addMoveToBook(board.getHash(), move);
+        addMoveToBook(board.getHash(), move, mv.second);
         board.makeMove(move);
     }
 }
 
-void OpeningBook::addMoveToBook(uint64_t positionKey, const Move& move) {
+void OpeningBook::addMoveToBook(uint64_t positionKey, const Move& move, int weight) {
     std::vector<BookMove>& entries = book[positionKey];
     for (BookMove& existing : entries) {
         if (existing.move.from == move.from && existing.move.to == move.to &&
             existing.move.promotion == move.promotion) {
-            existing.weight++;
+            existing.weight = (weight >= 0) ? weight : existing.weight + 1;
             return;
         }
     }
-    entries.push_back({move, 1});
+    entries.push_back({move, (weight >= 0) ? weight : 1});
 }
 
 // Resolves a move string (castle, coordinate, or SAN) to one of the position's
@@ -210,6 +224,10 @@ Move OpeningBook::getRandomMove(const Board& board) {
 
     int totalWeight = 0;
     for (const BookMove& m : it->second) totalWeight += m.weight;
+    if (totalWeight <= 0) {  // all weights zero: fall back to a uniform pick
+        std::uniform_int_distribution<size_t> u(0, it->second.size() - 1);
+        return it->second[u(rng)].move;
+    }
 
     std::uniform_int_distribution<int> dist(1, totalWeight);
     int roll = dist(rng);

@@ -36,8 +36,12 @@ private:
     Move parseMove(const std::string& moveStr, const Board& board);
     std::string moveToString(const Move& move);
     std::string moveToAlgebraic(const Move& move, const Board& board);
-    void addMoveToBook(uint64_t positionKey, const Move& move);
-    void processGame(const std::vector<std::string>& moves);
+    // weight < 0: increment the existing count by 1 (legacy named-opening
+    // counting); weight >= 0: set the count explicitly (e.g. a real game
+    // count from a master database).
+    void addMoveToBook(uint64_t positionKey, const Move& move, int weight = -1);
+    // Each pair is (move token, explicit weight or -1)
+    void processGame(const std::vector<std::pair<std::string, int>>& moves);
 };
 
 #endif // OPENING_BOOK_H
