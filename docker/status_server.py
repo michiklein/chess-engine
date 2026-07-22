@@ -926,9 +926,9 @@ def page(view="all"):
             return ""
         mins = (time.time() - ms / 1000) / 60
         if mins < 60:
-            return f"{int(mins)}m ago"
+            return f"{int(mins)}m"
         if mins < 60 * 24:
-            return f"{int(mins // 60)}h ago"
+            return f"{int(mins // 60)}h"
         return datetime.datetime.fromtimestamp(ms / 1000).strftime("%b %d")
 
     rows = ""
