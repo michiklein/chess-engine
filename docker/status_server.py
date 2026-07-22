@@ -650,6 +650,9 @@ tr:first-child:hover th { background:none; }
 .card a:hover { text-decoration:underline; }
 .win { color:var(--good); font-weight:600; } .loss { color:var(--bad); font-weight:600; }
 .mut { color:var(--muted); font-weight:400; font-size:13px; }
+.botbadge { font-size:10px; font-weight:700; letter-spacing:.02em; color:var(--accent);
+            border:1px solid var(--accent); border-radius:3px; padding:0 3px;
+            vertical-align:1px; }
 .foot { color:var(--muted); font-size:12px; margin-top:18px; }
 """
 
@@ -930,8 +933,9 @@ def page(view="all"):
 
     rows = ""
     for gv in games[:12]:
-        opp_txt = (f'{esc(gv["opp"])} <span class="mut">({gv["opp_rating"]})</span>'
-                   if gv["opp_rating"] else esc(gv["opp"]))
+        badge = ' <span class="botbadge">BOT</span>' if gv["opp_title"] == "BOT" else ""
+        opp_txt = (f'{esc(gv["opp"])}{badge} <span class="mut">({gv["opp_rating"]})</span>'
+                   if gv["opp_rating"] else f'{esc(gv["opp"])}{badge}')
         res = gv["res"]
         if gv["diff"] is not None:
             res += f' <span class="mut">{"+" if gv["diff"] >= 0 else ""}{gv["diff"]}</span>'
