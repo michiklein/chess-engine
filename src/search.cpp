@@ -550,9 +550,10 @@ int SearchEngine::evaluate(const Board& board) {
             while (bb) {
                 Square sq = firstSquare(bb);
                 bb &= bb - 1;
-                int value = getPieceValue(type);
-                mg += sign * (value + getPositionalValue(type, sq, color, false));
-                eg += sign * (value + getPositionalValue(type, sq, color, true));
+                int value   = getPieceValue(type);
+                int valueEG = getPieceValueEG(type);
+                mg += sign * (value   + getPositionalValue(type, sq, color, false));
+                eg += sign * (valueEG + getPositionalValue(type, sq, color, true));
                 if (type != PieceType::KING)
                     (color == Color::WHITE ? materialW : materialB) += value;
             }
@@ -595,6 +596,18 @@ int SearchEngine::getPieceValue(PieceType type) {
         case PieceType::KNIGHT: return 320;
         case PieceType::BISHOP: return 330;
         case PieceType::ROOK:   return 500;
+        case PieceType::QUEEN:  return 1000;
+        case PieceType::KING:   return 20000;
+        default: return 0;
+    }
+}
+
+int SearchEngine::getPieceValueEG(PieceType type) {
+    switch (type) {
+        case PieceType::PAWN:   return 115;  // passed/promotion races matter more
+        case PieceType::KNIGHT: return 300;  // no outposts left to jump into
+        case PieceType::BISHOP: return 345;  // long diagonals open up
+        case PieceType::ROOK:   return 520;  // the dominant endgame piece
         case PieceType::QUEEN:  return 1000;
         case PieceType::KING:   return 20000;
         default: return 0;

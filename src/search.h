@@ -86,6 +86,13 @@ private:
     int see(const Board& board, const Move& move);
 
     int getPositionalValue(PieceType type, Square square, Color color, bool endgame);
+    // Endgame-specific material values: knights lose value as the board
+    // empties (fewer outposts/pawns to leap around), while bishops, rooks,
+    // and pawns gain value on a more open board or in a promotion race
+    // (classical piece-value tapering, e.g. Kaufman 1999). Used only for the
+    // eg half of the material sum in evaluate(); SEE, MVV-LVA ordering, and
+    // the mop-up material-diff threshold keep using the flat getPieceValue.
+    int getPieceValueEG(PieceType type);
     // ttMove (if valid, i.e. from != to) is ordered first; depth selects the
     // killer-move slot.
     void orderMoves(const Board& board, std::vector<Move>& moves,
