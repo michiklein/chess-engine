@@ -6,8 +6,27 @@
 #include <algorithm>
 #include <cctype>
 #include <iostream>
+#include <chrono>
+#include <thread>
 
-OpeningBook::OpeningBook() : rng(std::random_device{}()) {}
+namespace {
+    // std::random_device is documented as "as random as the implementation
+    // can manage" - on some statically-linked glibc builds it silently falls
+    // back to a weak, near-constant seed instead of real hardware entropy,
+    // which makes every fresh process draw the same "random" book move. Mix
+    // it with a high-resolution clock and the thread id so a degenerate
+    // random_device can't make weighted book selection deterministic.
+    uint64_t seedRng() {
+        uint64_t s = std::random_device{}();
+        s ^= static_cast<uint64_t>(
+            std::chrono::high_resolution_clock::now().time_since_epoch().count());
+        s ^= std::hash<std::thread::id>{}(std::this_thread::get_id());
+        s ^= s << 13; s ^= s >> 7; s ^= s << 17;  // xorshift, spread the bits
+        return s;
+    }
+}
+
+OpeningBook::OpeningBook() : rng(seedRng()) {}
 OpeningBook::~OpeningBook() {}
 
 bool OpeningBook::loadFromFile(const std::string& filename) {
