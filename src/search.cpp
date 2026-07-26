@@ -93,6 +93,42 @@ namespace {
         return 10 * centerDist + 4 * (14 - kingDist);
     }
 
+    // Enemy attack pressure on the squares around `color`'s king. Returns a
+    // positive danger number (bigger = more dangerous for `color`). Unlike the
+    // pawn shield, this is active for a king anywhere on the board, including
+    // an uncastled king stuck in the centre.
+    int kingDanger(const Board& board, Color color) {
+        Square king = board.findKing(color);
+        if (king >= 64) return 0;
+        Color enemy = ~color;
+        Bitboard occ  = board.getAllPieces();
+        // King zone: the king square plus its immediate neighbours.
+        Bitboard zone = MoveGenerator::getKingAttacks(king) | (1ULL << king);
+
+        int attackers = 0, units = 0;
+        auto tally = [&](Bitboard pieces, int weight, auto attackFn) {
+            while (pieces) {
+                Square s = firstSquare(pieces); pieces &= pieces - 1;
+                int hits = popCount(attackFn(s) & zone);
+                if (hits) { attackers++; units += weight * hits; }
+            }
+        };
+
+        tally(board.getPieceBitboard(PieceType::KNIGHT, enemy), 30,
+              [&](Square s){ return MoveGenerator::getKnightAttacks(s); });
+        tally(board.getPieceBitboard(PieceType::BISHOP, enemy), 30,
+              [&](Square s){ return MoveGenerator::getBishopAttacks(s, occ); });
+        tally(board.getPieceBitboard(PieceType::ROOK, enemy), 60,
+              [&](Square s){ return MoveGenerator::getRookAttacks(s, occ); });
+        tally(board.getPieceBitboard(PieceType::QUEEN, enemy), 100,
+              [&](Square s){ return MoveGenerator::getQueenAttacks(s, occ); });
+
+        // A lone attacker is rarely dangerous; danger ramps up with more of
+        // them attacking the same king (classic multi-attacker weighting).
+        static const int multiplier[8] = {0, 0, 50, 75, 88, 94, 97, 99};
+        return units * multiplier[std::min(attackers, 7)] / 100;
+    }
+
     // White-relative king safety score
     int evaluateKingSafety(const Board& board) {
         int score = 0;
@@ -124,6 +160,10 @@ namespace {
 
         score += pawnShield(Color::WHITE);
         score -= pawnShield(Color::BLACK);
+        // Attack-based danger: subtract danger to our king, add the danger we
+        // pose to the enemy king (white-relative).
+        score -= kingDanger(board, Color::WHITE);
+        score += kingDanger(board, Color::BLACK);
         return score;
     }
 }
