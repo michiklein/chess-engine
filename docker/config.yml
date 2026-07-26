@@ -63,4 +63,4 @@ matchmaking:
     - 3
   challenge_mode: "rated"          # rated games so the rating establishes
   opponent_rating_difference: 1000
-  challenge_filter: coarse         # don't re-spam bots that decline
+  challenge_filter: fine         
