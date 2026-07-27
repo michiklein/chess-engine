@@ -75,10 +75,15 @@ private:
     bool bookEnabled{true};
 
     static const int MAX_KILLER_MOVES = 2;
-    Move killerMoves[32][MAX_KILLER_MOVES];
+    // Killers are keyed by ply from the root, not by remaining depth: two nodes
+    // with the same depth left can sit in completely unrelated parts of the
+    // tree, so sharing a slot between them mostly just evicts useful moves.
+    // Sized past the deepest search (64) with headroom for check extensions.
+    static constexpr int MAX_PLY = 128;
+    Move killerMoves[MAX_PLY][MAX_KILLER_MOVES];
     int historyTable[64][64];
 
-    int alphaBeta(Board& board, int depth, int alpha, int beta, bool nullMoveAllowed);
+    int alphaBeta(Board& board, int depth, int alpha, int beta, bool nullMoveAllowed, int ply);
     int quiescence(Board& board, int alpha, int beta);
 
     // Static exchange evaluation: expected material outcome of a capture
@@ -93,14 +98,14 @@ private:
     // eg half of the material sum in evaluate(); SEE, MVV-LVA ordering, and
     // the mop-up material-diff threshold keep using the flat getPieceValue.
     int getPieceValueEG(PieceType type);
-    // ttMove (if valid, i.e. from != to) is ordered first; depth selects the
+    // ttMove (if valid, i.e. from != to) is ordered first; ply selects the
     // killer-move slot.
     void orderMoves(const Board& board, std::vector<Move>& moves,
-                    const Move& ttMove, int depth);
+                    const Move& ttMove, int ply);
 
-    bool isKillerMove(const Move& move, int depth);
+    bool isKillerMove(const Move& move, int ply);
     int getHistoryScore(const Move& move);
-    void recordKillerMove(const Move& move, int depth);
+    void recordKillerMove(const Move& move, int ply);
     void recordHistoryMove(const Move& move, int depth);
 };
 

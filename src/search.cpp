@@ -179,7 +179,7 @@ SearchEngine::SearchEngine()
 
 void SearchEngine::newGame() {
     for (auto& e : tt) e = TTEntry();
-    for (int i = 0; i < 32; i++)
+    for (int i = 0; i < MAX_PLY; i++)
         for (int j = 0; j < MAX_KILLER_MOVES; j++)
             killerMoves[i][j] = Move();
     for (int i = 0; i < 64; i++)
@@ -242,8 +242,8 @@ SearchResult SearchEngine::search(const Board& board, int depth) {
 
     for (int d = 1; d <= depth; d++) {
         currentDepth = d;
-        // Previous iteration's best move is searched first.
-        orderMoves(mutableBoard, moves, bestMove, d);
+        // Previous iteration's best move is searched first. The root is ply 0.
+        orderMoves(mutableBoard, moves, bestMove, 0);
 
         // Aspiration window: search around the previous score first; on a
         // fail re-search that side with a full window.
@@ -262,11 +262,11 @@ SearchResult SearchEngine::search(const Board& board, int depth) {
                 mutableBoard.makeMove(moves[i]);
                 int score;
                 if (i == 0) {
-                    score = -alphaBeta(mutableBoard, d - 1, -beta, -alpha, true);
+                    score = -alphaBeta(mutableBoard, d - 1, -beta, -alpha, true, 1);
                 } else {
-                    score = -alphaBeta(mutableBoard, d - 1, -alpha - 1, -alpha, true);
+                    score = -alphaBeta(mutableBoard, d - 1, -alpha - 1, -alpha, true, 1);
                     if (score > alpha && score < beta)
-                        score = -alphaBeta(mutableBoard, d - 1, -beta, -alpha, true);
+                        score = -alphaBeta(mutableBoard, d - 1, -beta, -alpha, true, 1);
                 }
                 mutableBoard.unmakeMove(moves[i]);
 
@@ -326,7 +326,9 @@ SearchResult SearchEngine::search(const Board& board, int depth) {
 
             std::cout << "info depth " << d;
             if (bestScore > MATE_SCORE - 1000 || bestScore < -(MATE_SCORE - 1000)) {
-                int plies = std::max(1, d - (MATE_SCORE - std::abs(bestScore)));
+                // Mate scores encode ply distance from the root, so the
+                // distance falls straight out of the score.
+                int plies  = MATE_SCORE - std::abs(bestScore);
                 int mateIn = (plies + 1) / 2;
                 std::cout << " score mate " << (bestScore > 0 ? mateIn : -mateIn);
             } else {
@@ -365,11 +367,16 @@ SearchResult SearchEngine::search(const Board& board, int depth) {
     return result;
 }
 
-int SearchEngine::alphaBeta(Board& board, int depth, int alpha, int beta, bool nullMoveAllowed) {
+int SearchEngine::alphaBeta(Board& board, int depth, int alpha, int beta, bool nullMoveAllowed, int ply) {
     if (isTimeUp()) return 0;
     nodesSearched++;
 
     bool inCheck = board.isInCheck(board.getSideToMove());
+
+    // A node in check extends without spending depth, so a long forcing line
+    // can recurse without the depth counter ever reaching zero. Repetition
+    // detection normally ends these, but cap the ply as a hard backstop.
+    if (ply >= MAX_PLY - 1) return evaluate(board) * (board.getSideToMove() == Color::WHITE ? 1 : -1);
 
     // Draw detection: repetition, dead material, and fifty-move rule (unless
     // in check, where the mating side may still deliver mate on this move).
@@ -407,7 +414,7 @@ int SearchEngine::alphaBeta(Board& board, int depth, int alpha, int beta, bool n
         if (mine & ~pawns & ~king) {
             int R = (depth >= 6) ? 3 : 2;
             board.makeNullMove();
-            int nullScore = -alphaBeta(board, depth - R - 1, -beta, -beta + 1, false);
+            int nullScore = -alphaBeta(board, depth - R - 1, -beta, -beta + 1, false, ply + 1);
             board.unmakeNullMove();
             if (nullScore >= beta) return beta;
         }
@@ -424,7 +431,7 @@ int SearchEngine::alphaBeta(Board& board, int depth, int alpha, int beta, bool n
     // Pseudo-legal moves with lazy legality: each move is validated by making
     // it and testing for check, instead of filtering the whole list up front.
     std::vector<Move> moves = MoveGenerator::generatePseudoLegalMoves(board);
-    orderMoves(board, moves, hasTTMove ? ttMove : Move(), depth);
+    orderMoves(board, moves, hasTTMove ? ttMove : Move(), ply);
 
     Color us           = board.getSideToMove();
     int  originalAlpha = alpha;
@@ -449,7 +456,7 @@ int SearchEngine::alphaBeta(Board& board, int depth, int alpha, int beta, bool n
 
         if (legalCount == 1) {
             // First move: full window
-            score = -alphaBeta(board, depth - 1, -beta, -alpha, true);
+            score = -alphaBeta(board, depth - 1, -beta, -alpha, true, ply + 1);
         } else {
             // LMR: reduce quiet moves that are ordered late
             int reduction = 0;
@@ -457,11 +464,11 @@ int SearchEngine::alphaBeta(Board& board, int depth, int alpha, int beta, bool n
                 reduction = 1 + (legalCount > 6 && depth >= 4 ? 1 : 0);
 
             // PVS: null window first
-            score = -alphaBeta(board, depth - 1 - reduction, -alpha - 1, -alpha, true);
+            score = -alphaBeta(board, depth - 1 - reduction, -alpha - 1, -alpha, true, ply + 1);
 
             // Re-search full window if it beat alpha (or was reduced)
             if (score > alpha && (reduction > 0 || score < beta))
-                score = -alphaBeta(board, depth - 1, -beta, -alpha, true);
+                score = -alphaBeta(board, depth - 1, -beta, -alpha, true, ply + 1);
         }
 
         board.unmakeMove(move);
@@ -469,13 +476,16 @@ int SearchEngine::alphaBeta(Board& board, int depth, int alpha, int beta, bool n
         if (score > bestScore) { bestScore = score; bestMove = move; }
         if (score > alpha) alpha = score;
         if (alpha >= beta) {
-            if (isQuiet) { recordKillerMove(move, depth); recordHistoryMove(move, depth); }
+            if (isQuiet) { recordKillerMove(move, ply); recordHistoryMove(move, depth); }
             break;
         }
     }
 
+    // Mate distance is measured from the root, so that a mate found closer to
+    // the root scores as more decisive and the shortest mate is preferred.
+    // Keying this to remaining depth instead inverts that preference.
     if (legalCount == 0)
-        return inCheck ? -(MATE_SCORE - depth) : DRAW_SCORE;
+        return inCheck ? -(MATE_SCORE - ply) : DRAW_SCORE;
 
     // Don't store aborted searches, and don't store mate scores: they encode
     // distance-to-mate relative to this node and are wrong elsewhere.
@@ -767,7 +777,7 @@ int SearchEngine::getPositionalValue(PieceType type, Square square, Color color,
 }
 
 void SearchEngine::orderMoves(const Board& board, std::vector<Move>& moves,
-                              const Move& ttMove, int depth) {
+                              const Move& ttMove, int ply) {
     bool hasTTMove = ttMove.from != ttMove.to;
 
     // Score each move once, then sort by score.
@@ -790,7 +800,7 @@ void SearchEngine::orderMoves(const Board& board, std::vector<Move>& moves,
             }
         } else if (m.promotion != PieceType::NONE) {
             s = 90000 + getPieceValue(m.promotion);
-        } else if (isKillerMove(m, depth)) {
+        } else if (isKillerMove(m, ply)) {
             s = 80000;
         } else {
             s = std::min(getHistoryScore(m), 79000);
@@ -803,12 +813,12 @@ void SearchEngine::orderMoves(const Board& board, std::vector<Move>& moves,
     for (size_t i = 0; i < moves.size(); i++) moves[i] = scored[i].second;
 }
 
-bool SearchEngine::isKillerMove(const Move& move, int depth) {
-    if (depth < 0 || depth >= 32) return false;
+bool SearchEngine::isKillerMove(const Move& move, int ply) {
+    if (ply < 0 || ply >= MAX_PLY) return false;
     for (int i = 0; i < MAX_KILLER_MOVES; i++)
-        if (killerMoves[depth][i].from == move.from &&
-            killerMoves[depth][i].to   == move.to   &&
-            killerMoves[depth][i].promotion == move.promotion) return true;
+        if (killerMoves[ply][i].from == move.from &&
+            killerMoves[ply][i].to   == move.to   &&
+            killerMoves[ply][i].promotion == move.promotion) return true;
     return false;
 }
 
@@ -817,11 +827,15 @@ int SearchEngine::getHistoryScore(const Move& move) {
     return historyTable[move.from][move.to];
 }
 
-void SearchEngine::recordKillerMove(const Move& move, int depth) {
-    if (depth < 0 || depth >= 32 || move.isCapture) return;
+void SearchEngine::recordKillerMove(const Move& move, int ply) {
+    if (ply < 0 || ply >= MAX_PLY || move.isCapture) return;
+    // Don't let the same move occupy both slots.
+    if (killerMoves[ply][0].from == move.from &&
+        killerMoves[ply][0].to   == move.to   &&
+        killerMoves[ply][0].promotion == move.promotion) return;
     for (int i = MAX_KILLER_MOVES - 1; i > 0; i--)
-        killerMoves[depth][i] = killerMoves[depth][i - 1];
-    killerMoves[depth][0] = move;
+        killerMoves[ply][i] = killerMoves[ply][i - 1];
+    killerMoves[ply][0] = move;
 }
 
 void SearchEngine::recordHistoryMove(const Move& move, int depth) {
