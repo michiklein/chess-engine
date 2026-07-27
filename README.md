@@ -56,10 +56,18 @@ app pulls the CI-built image from `ghcr.io/<owner>/chess-engine`.
 Bot settings (time controls, matchmaking, greetings) live in `docker/config.yml`.
 
 Once running, open `http://<host>:8087` for the dashboard: ratings with
-resettable peaks, a rating-history chart with engine-update markers,
-performance/opponents/openings broken down by bots-vs-humans, and an
-**update engine** button that hot-swaps in the latest CI-built binary without
-touching the container.
+resettable peaks, a rating-history chart with engine-update markers, the live
+board while a game is in progress, performance/opponents/openings broken down
+by bots-vs-humans (each over the last 60 games or all time), a **by engine
+version** scoreboard that scores every build against the games it actually
+played, and an **update engine** button that hot-swaps in the latest CI-built
+binary without touching the container.
+
+The dashboard keeps its state in `/data`, which the compose file and the
+ZimaOS app definition mount as a volume. Without that mount the engine-version
+history resets every time the container is recreated — which is exactly what
+an image update does — and it is the one thing that cannot be rebuilt from the
+Lichess API afterwards.
 
 ### Automatic container updates (Watchtower)
 

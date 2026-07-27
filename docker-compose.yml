@@ -16,6 +16,11 @@ services:
       - LICHESS_BOT_TOKEN=${LICHESS_BOT_TOKEN:-}
     ports:
       - "8087:8087"   # status page (web UI for the ZimaOS app tile)
+    volumes:
+      # Dashboard state: the engine-version log lives here and is the only
+      # thing that cannot be rebuilt from Lichess, so it must outlive the
+      # container (every image pull recreates it).
+      - bot-data:/data
     restart: unless-stopped
     stop_grace_period: 30s
     # Keep the bot from competing with other services on the host. CPU only
@@ -23,3 +28,6 @@ services:
     # 0.2 cores ~= 5% of a 4-core server (check with nproc; 5% = 0.05 x cores).
     cpus: 0.2
     mem_limit: 512m
+
+volumes:
+  bot-data:

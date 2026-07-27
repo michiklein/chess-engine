@@ -18,6 +18,10 @@ services:
       LICHESS_BOT_TOKEN: "PASTE_YOUR_TOKEN_HERE"
     ports:
       - "8087:8087"
+    volumes:
+      # Keeps the engine-version history across image updates (a pull
+      # recreates the container and would otherwise wipe it).
+      - /DATA/AppData/kleinibot:/data
     restart: unless-stopped
     cpus: 0.2                       # ~5% of a 4-core host
     mem_limit: 512m
@@ -30,6 +34,10 @@ services:
         - container: "8087"
           description:
             en_us: Bot status page
+      volumes:
+        - container: /data
+          description:
+            en_us: Dashboard state (rating peaks, engine-version history)
 
 x-casaos:
   architectures:

@@ -6,6 +6,7 @@ breakdowns (by color, speed, opening), recent games - all from the cached
 public Lichess API. Supervises the lichess-bot process (start/stop) and can
 hot-swap the engine binary from the latest GitHub release (update button).
 """
+import bisect
 import datetime
 import html
 import json
@@ -30,14 +31,48 @@ ENGINE_URL = os.environ.get(
     "https://github.com/michiklein/chess-engine/releases/download/engine-latest/chess_engine")
 UA = "chess-engine-status/3.0"
 
-CHART_W, CHART_H = 640, 230
+CHART_W, CHART_H = 1000, 260
 PAD_L, PAD_R, PAD_T, PAD_B = 44, 14, 12, 26
 MAX_DAYS = 60
 NGAMES = 60  # recent games pulled for the table and by-color/speed stats
-OPENINGS_FILE = os.environ.get("OPENINGS_CACHE", "/tmp/openings.json")
 OPENINGS_REFRESH = 600  # seconds between incremental all-time openings pulls
-PEAKS_FILE = os.environ.get("PEAKS_CACHE", "/tmp/peaks.json")
-UPDATES_FILE = os.environ.get("UPDATES_CACHE", "/tmp/engine_updates.json")
+
+
+def state_dir():
+    """Prefer a mounted volume: the engine-update log is the one piece of
+    state that cannot be rebuilt from Lichess, and a container recreate
+    (every :latest image pull) wipes anything left in /tmp."""
+    d = os.environ.get("STATE_DIR", "/data")
+    try:
+        os.makedirs(d, exist_ok=True)
+        probe = os.path.join(d, ".writable")
+        with open(probe, "w"):
+            pass
+        os.remove(probe)
+        return d
+    except Exception:
+        return "/tmp"
+
+
+STATE_DIR = state_dir()
+
+
+def state_file(env, name):
+    """Path under the state dir, carrying over a pre-volume /tmp copy once."""
+    path = os.environ.get(env) or os.path.join(STATE_DIR, name)
+    legacy = os.path.join("/tmp", name)
+    if path != legacy and not os.path.exists(path) and os.path.exists(legacy):
+        try:
+            with open(legacy, "rb") as src, open(path, "wb") as dst:
+                dst.write(src.read())
+        except Exception:
+            pass
+    return path
+
+
+OPENINGS_FILE = state_file("OPENINGS_CACHE", "openings.json")
+PEAKS_FILE = state_file("PEAKS_CACHE", "peaks.json")
+UPDATES_FILE = state_file("UPDATES_CACHE", "engine_updates.json")
 
 
 # ---------------------------------------------------------------------------
@@ -86,17 +121,74 @@ class Supervisor:
 supervisor = Supervisor()
 
 
-def engine_version():
-    """Ask the engine binary for its 'id name' line (contains the build id)."""
+_engine_ver = None
+
+
+def engine_version(refresh=False):
+    """Ask the engine binary for its 'id name' line (contains the build id).
+    Cached: this spawns a process, and the page renders it on every load."""
+    global _engine_ver
+    if _engine_ver is not None and not refresh:
+        return _engine_ver
+    ver = "unknown"
     try:
         p = subprocess.run([ENGINE], input="uci\nquit\n", capture_output=True,
                            text=True, timeout=5)
         for line in p.stdout.splitlines():
             if line.startswith("id name"):
-                return line[len("id name"):].strip()
+                ver = line[len("id name"):].strip()
+                break
     except Exception:
         pass
-    return "unknown"
+    _engine_ver = ver
+    return ver
+
+
+_versions_lock = threading.Lock()
+
+
+def load_versions():
+    """The engine-version timeline, oldest first: [{"t": epoch, "ver": str}]."""
+    try:
+        with open(UPDATES_FILE) as f:
+            log = json.load(f)
+        return sorted((e for e in log if e.get("t")), key=lambda e: e["t"])
+    except Exception:
+        return []
+
+
+def log_version(ver):
+    """Append to the timeline when the running engine differs from the last
+    entry. Called on every startup as well as after the update button, so a
+    new engine baked into a pulled image is recorded too."""
+    with _versions_lock:
+        log = load_versions()
+        if log and log[-1].get("ver") == ver:
+            return
+        log.append({"t": time.time(), "ver": ver})
+        try:
+            tmp = UPDATES_FILE + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(log, f)
+            os.replace(tmp, UPDATES_FILE)
+        except Exception:
+            pass
+
+
+_version_index = ([], [])  # (sorted timestamps, parallel version strings)
+
+
+def reindex_versions():
+    global _version_index
+    log = load_versions()
+    _version_index = ([e["t"] for e in log], [e.get("ver", "?") for e in log])
+
+
+def version_at(ts):
+    """Which engine version was running at epoch-seconds `ts` (or None)."""
+    times, vers = _version_index
+    i = bisect.bisect_right(times, ts) - 1
+    return vers[i] if i >= 0 else None
 
 
 def update_engine():
@@ -115,18 +207,11 @@ def update_engine():
             raise RuntimeError("downloaded binary did not respond to uci")
         supervisor.stop()
         os.replace(tmp, ENGINE)
-        ver = engine_version()
+        ver = engine_version(refresh=True)
         supervisor.status = "engine updated to " + ver
-        try:  # remember when, so the rating chart can mark it
-            log = []
-            if os.path.exists(UPDATES_FILE):
-                with open(UPDATES_FILE) as f:
-                    log = json.load(f)
-            log.append({"t": time.time(), "ver": ver})
-            with open(UPDATES_FILE, "w") as f:
-                json.dump(log, f)
-        except Exception:
-            pass
+        # Remember when, so the chart can mark it and games can be attributed
+        log_version(ver)
+        reindex_versions()
     except Exception as e:
         supervisor.status = "update failed: " + str(e)
         try:
@@ -233,13 +318,13 @@ _openings_last = 0.0
 _openings_lock = threading.Lock()
 
 
-STORE_VERSION = 5  # bump when the accumulated schema changes -> forces a rebuild
+STORE_VERSION = 6  # bump when the accumulated schema changes -> forces a rebuild
 
 
 def _new_sub():
     # one tally group, sliceable independently for all / bots / humans
     return {"white": {}, "black": {}, "speed": {}, "buckets": {}, "opps": {},
-            "days": {}, "best_win": None, "worst_loss": None}
+            "days": {}, "vers": {}, "best_win": None, "worst_loss": None}
 
 
 def _new_store():
@@ -281,6 +366,19 @@ def _bump(d, key, res):
     rec["n"] += 1
 
 
+def _bump_version(d, ver, gv, at):
+    """Version tally also carries the net rating swing and the date span."""
+    rec = d.setdefault(ver, {"win": 0, "draw": 0, "loss": 0, "n": 0,
+                             "rd": 0, "rated": 0, "first": at, "last": at})
+    rec[gv["res"]] += 1
+    rec["n"] += 1
+    if gv["diff"] is not None:  # unrated games have no rating change
+        rec["rd"] += gv["diff"]
+        rec["rated"] += 1
+    rec["first"] = min(rec.get("first", at), at)
+    rec["last"] = max(rec.get("last", at), at)
+
+
 def _save_openings(store):
     try:
         tmp = OPENINGS_FILE + ".tmp"
@@ -299,6 +397,7 @@ def openings_store(u):
         if time.time() - _openings_last < OPENINGS_REFRESH and store["since"]:
             return store
         _openings_last = time.time()
+        reindex_versions()  # attribute each game to the engine that played it
         since = store.get("since", 0)
         url = (f"https://lichess.org/api/games/user/{u}"
                f"?opening=true&sort=dateAsc")
@@ -318,14 +417,17 @@ def openings_store(u):
                     fam = opening_family(gv["opening"])
                     bucket = rating_bucket(gv["opp_rating"])
                     who = "bot" if gv["opp_title"] == "BOT" else "human"
-                    dayord = str(datetime.date.fromtimestamp(
-                        g.get("createdAt", 0) / 1000).toordinal())
+                    started = g.get("createdAt", 0) / 1000
+                    dayord = str(datetime.date.fromtimestamp(started).toordinal())
+                    ver = version_at(started)
                     for grp in ("all", who):  # accumulate into combined + its group
                         sub = store[grp]
                         _bump(sub[side], fam, gv["res"])
                         _bump(sub["speed"], gv["speed"], gv["res"])
                         _bump(sub["opps"], gv["opp"], gv["res"])
                         sub["days"][dayord] = sub["days"].get(dayord, 0) + 1
+                        if ver:
+                            _bump_version(sub["vers"], ver, gv, started)
                         if bucket:
                             _bump(sub["buckets"], bucket, gv["res"])
                         r = gv["opp_rating"]
@@ -343,6 +445,17 @@ def openings_store(u):
         except Exception:
             pass  # keep whatever we already have
         return store
+
+
+def tally_recent(gvs):
+    """Tally a list of game views into the same shape as the all-time store,
+    so the performance/openings cards can render either slice unchanged."""
+    sub = _new_sub()
+    for gv in gvs:
+        side = "white" if gv["we_white"] else "black"
+        _bump(sub[side], opening_family(gv["opening"]), gv["res"])
+        _bump(sub["speed"], gv["speed"], gv["res"])
+    return sub
 
 
 def format_clock(g):
@@ -457,7 +570,7 @@ def build_chart(u):
         grid += (f'<line x1="{PAD_L}" y1="{gy}" x2="{CHART_W - PAD_R}" y2="{gy}" class="grid"/>'
                  f'<text x="{PAD_L - 6}" y="{gy + 3.5}" class="tick" text-anchor="end">{tick}</text>')
         tick += step
-    for i in range(0, len(days), max(len(days) // 4, 1)):
+    for i in range(0, len(days), max(len(days) // 8, 1)):
         d = datetime.date.fromordinal(days[i])
         grid += (f'<text x="{round(x(i), 1)}" y="{CHART_H - 8}" class="tick" '
                  f'text-anchor="middle">{d.strftime("%b %d")}</text>')
@@ -520,7 +633,7 @@ def build_chart(u):
 
 
 CHART_JS = """
-(function () {
+function initChart() {
   const el = document.getElementById('chart-data');
   if (!el) return;
   const D = JSON.parse(el.textContent);
@@ -561,6 +674,45 @@ CHART_JS = """
     D.series.forEach((s) =>
       document.getElementById('dot-' + s.name).setAttribute('visibility', 'hidden'));
   });
+}
+initChart();
+
+// Background refresh: swap the two content regions in place instead of
+// reloading, so scroll position, the chart hover and - above all - the
+// embedded live board survive. The board only gets replaced when the game
+// id changes; re-inserting that iframe would restart it every minute.
+(function () {
+  const REGIONS = ['top', 'bottom'];
+  let busy = false;
+  async function refresh() {
+    if (busy || document.hidden) return;
+    busy = true;
+    try {
+      const r = await fetch(location.pathname + location.search,
+                            { cache: 'no-store' });
+      if (!r.ok) return;
+      const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
+      REGIONS.forEach((id) => {
+        const next = doc.getElementById(id), cur = document.getElementById(id);
+        if (next && cur) cur.innerHTML = next.innerHTML;
+      });
+      const next = doc.getElementById('live-slot');
+      const cur = document.getElementById('live-slot');
+      if (next && cur && next.dataset.game !== cur.dataset.game) {
+        cur.dataset.game = next.dataset.game;
+        cur.innerHTML = next.innerHTML;
+      }
+      initChart();
+    } catch (e) {
+      /* offline or lichess hiccup: keep what is on screen */
+    } finally {
+      busy = false;
+    }
+  }
+  setInterval(refresh, 60000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) refresh();
+  });
 })();
 """
 
@@ -574,7 +726,7 @@ CSS = """
           --accent:#86b6ef; --s1:#3987e5; --s2:#199e70; --s3:#c98500; }
 }
 * { box-sizing:border-box; margin:0; }
-body { background:var(--surface); color:var(--ink); max-width:700px;
+body { background:var(--surface); color:var(--ink); max-width:1080px;
        font:15px/1.55 system-ui,-apple-system,sans-serif; margin:0 auto; padding:28px 18px 40px; }
 h1 { font-size:24px; letter-spacing:-.01em; } h1 a { color:inherit; text-decoration:none; }
 .sub { color:var(--muted); margin:2px 0 18px; }
@@ -598,6 +750,12 @@ button.primary:hover { filter:brightness(1.08); color:#fff; }
 .tab:hover { border-color:var(--accent); color:var(--accent); }
 .tab.on { color:#fff; background:var(--accent); border-color:var(--accent); }
 .msg { font-size:13px; color:var(--accent); margin-bottom:14px; min-height:1px; }
+.stabs { display:flex; gap:4px; }
+.stab { font-size:11.5px; padding:2px 9px; border-radius:999px; text-decoration:none;
+        color:var(--muted); border:1px solid var(--line);
+        transition:border-color .15s, color .15s; }
+.stab:hover { border-color:var(--accent); color:var(--accent); }
+.stab.on { color:#fff; background:var(--accent); border-color:var(--accent); }
 .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(126px,1fr));
          gap:10px; margin-bottom:16px; }
 .tile { background:var(--card); border:1px solid var(--line); border-radius:10px;
@@ -608,6 +766,12 @@ button.primary:hover { filter:brightness(1.08); color:#fff; }
 .up { color:var(--good); font-size:13px; } .down { color:var(--bad); font-size:13px; }
 .card { background:var(--card); border:1px solid var(--line); border-radius:10px;
         padding:13px 15px; margin-bottom:14px; }
+/* Wide screens: short cards pair up, data-dense ones keep the full width */
+.cols { display:grid; grid-template-columns:repeat(auto-fit,minmax(440px,1fr));
+        gap:0 14px; align-items:start; }
+.cols .wide { grid-column:1/-1; }
+.board { width:100%; max-width:640px; height:397px; border:0; display:block;
+         border-radius:8px; }
 .cardhead { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; }
 .cardtitle { color:var(--muted); font-size:11.5px; text-transform:uppercase;
              letter-spacing:.06em; font-weight:600; }
@@ -689,17 +853,107 @@ def controls(running):
     return f'<div class="controls">{buttons}<span class="chipstate">bot: {chip}</span></div>'
 
 
-def view_toggle(view):
+def version_card(sub, label):
+    """Per-engine-version scoreboard: the A/B result for every build that has
+    actually played games, newest first."""
+    vers = sub.get("vers", {})
+    if not vers:
+        return ""
+    esc = html.escape
+    current = engine_version()
+    rows = ""
+    ranked = sorted(vers.items(), key=lambda kv: -kv[1]["first"])[:8]
+    for ver, r in ranked:
+        span = datetime.date.fromtimestamp(r["first"]).strftime("%b %d")
+        if datetime.date.fromtimestamp(r["last"]) != datetime.date.fromtimestamp(r["first"]):
+            span += " - " + datetime.date.fromtimestamp(r["last"]).strftime("%b %d")
+        rd = r["rd"]
+        delta = (f'<span class="up">+{rd}</span>' if rd > 0 else
+                 f'<span class="down">{rd}</span>' if rd < 0 else
+                 '<span class="mut">0</span>')
+        if not r["rated"]:
+            delta = '<span class="mut">-</span>'
+        badge = ' <span class="botbadge">NOW</span>' if ver == current else ""
+        rows += (f'<tr><td>{esc(ver)}{badge}</td>'
+                 f'<td class="mut">{r["n"]}</td>'
+                 f'<td>{r["win"]}-{r["draw"]}-{r["loss"]}</td>'
+                 f'<td>{score_pct(r["win"], r["draw"], r["loss"])}</td>'
+                 f'<td>{delta}</td>'
+                 f'<td class="mut">{span}</td></tr>')
+    return f"""
+<div class="card wide" id="versions">
+  <div class="cardhead"><span class="cardtitle">By engine version</span>
+    <span class="mut">{label}</span></div>
+<table><tr><th>Version</th><th>Games</th><th>W-D-L</th><th>Score</th>
+  <th>Rating &Delta;</th><th>Played</th></tr>{rows}</table>
+  <div class="mut" style="margin-top:6px;font-size:12px">Rating &Delta; sums the
+    rating change of every rated game played on that build. Versions are
+    attributed by when the game started, so a build that only ever met weak
+    opposition will still look good - read it next to the score column.</div>
+</div>"""
+
+
+def live_card(game_id, u):
+    """Embedded live board while a game is in progress."""
+    if not game_id:
+        return '<div id="live-slot" data-game=""></div>'
+    esc = html.escape
+    gid = esc(str(game_id))
+    info = ""
+    g = fetch(f"https://lichess.org/game/export/{game_id}?moves=false&clocks=false",
+              {"Accept": "application/json"}, ttl=20)
+    if g:
+        gv = game_view(g, u)
+        badge = ' <span class="botbadge">BOT</span>' if gv["opp_title"] == "BOT" else ""
+        rating = f' <span class="mut">({gv["opp_rating"]})</span>' if gv["opp_rating"] else ""
+        opening = (f' &middot; {esc(gv["opening"])}' if gv["opening"] else "")
+        info = (f'<span class="mut">as {"white" if gv["we_white"] else "black"} vs </span>'
+                f'{esc(gv["opp"])}{badge}{rating}'
+                f'<span class="mut"> &middot; {esc(gv["clock"])}{opening}</span>')
+    return f"""<div id="live-slot" data-game="{gid}">
+<div class="card">
+  <div class="cardhead"><span class="cardtitle">Playing now</span>
+    <span class="mut"><a href="https://lichess.org/{gid}" target="_blank"
+      rel="noopener">open on lichess</a></span></div>
+  <div class="statline" style="margin-bottom:8px">{info}</div>
+  <iframe class="board" src="https://lichess.org/embed/game/{gid}?theme=auto&amp;bg=auto"
+    title="live game" allowtransparency="true" frameborder="0"></iframe>
+</div></div>"""
+
+
+def query(params, **changes):
+    return html.escape(urllib.parse.urlencode({**params, **changes}))
+
+
+def view_toggle(view, params):
     opts = [("all", "All"), ("bot", "vs Bots"), ("human", "vs Humans")]
     links = "".join(
-        f'<a class="tab{" on" if view == k else ""}" href="/?vs={k}">{lbl}</a>'
+        f'<a class="tab{" on" if view == k else ""}" '
+        f'href="/?{query(params, vs=k)}">{lbl}</a>'
         for k, lbl in opts)
     return f'<div class="tabs">{links}</div>'
 
 
-def page(view="all"):
+def scope_tabs(param, scope, params, anchor):
+    """Small 'last 60 / all-time' switch for one card's header."""
+    links = "".join(
+        f'<a class="stab{" on" if scope == k else ""}" '
+        f'href="/?{query(params, **{param: k})}#{anchor}">{lbl}</a>'
+        for k, lbl in (("60", "last 60"), ("all", "all-time")))
+    return f'<span class="stabs">{links}</span>'
+
+
+def slice_label(view, scope):
+    parts = ["last 60" if scope == "60" else "all-time"]
+    if view != "all":
+        parts.append("vs bots" if view == "bot" else "vs humans")
+    return " &middot; ".join(parts)
+
+
+def page(view="all", perf_scope="all", open_scope="all"):
     if view not in ("all", "bot", "human"):
         view = "all"
+    params = {"vs": view, "perf": perf_scope, "open": open_scope}
     u = username()
     running = supervisor.alive()
     if not u:
@@ -758,6 +1012,13 @@ def page(view="all"):
         games = [gv for gv in games
                  if ("bot" if gv["opp_title"] == "BOT" else "human") == view]
 
+    # Per-card slices: either the all-time store or just the recent games
+    recent_sub = tally_recent(games)
+    perf_sub = recent_sub if perf_scope == "60" else sub
+    open_sub = recent_sub if open_scope == "60" else sub
+    perf_label = slice_label(view, perf_scope)
+    open_label = slice_label(view, open_scope)
+
     # ---- Activity card: games today / this week + 14-day sparkline ---------
     today_ord = datetime.date.today().toordinal()
     daycounts = sub.get("days", {})
@@ -786,14 +1047,15 @@ def page(view="all"):
     # ---- Performance card: overall + by color + by speed -------------------
     def color_totals(side):
         w = d = l = 0
-        for r in sub[side].values():
+        for r in perf_sub[side].values():
             w += r["win"]; d += r["draw"]; l += r["loss"]
         return w, d, l
 
     ww, wd, wl = color_totals("white")
     bw, bd, bl = color_totals("black")
     w, d, l = ww + bw, wd + bd, wl + bl
-    if w + d + l == 0 and view == "all":  # not populated yet: fall back to profile
+    if w + d + l == 0 and view == "all" and perf_scope == "all":
+        # all-time tallies not populated yet: fall back to the profile counts
         w, d, l = c.get("win", 0), c.get("draw", 0), c.get("loss", 0)
 
     # Current streak from the recent games (newest first)
@@ -819,22 +1081,23 @@ def page(view="all"):
 
     speed_lines = ""
     for s in ("bullet", "blitz", "rapid", "classical"):
-        r = sub["speed"].get(s)
+        r = perf_sub["speed"].get(s)
         if r:
             speed_lines += (f'<div class="statline"><span class="lab">{s}</span> '
                             f'&nbsp;<b>{r["win"]}-{r["draw"]}-{r["loss"]}</b> '
                             f'<span class="mut">{score_pct(r["win"],r["draw"],r["loss"])}</span></div>')
 
     perf = f"""
-<div class="card">
+<div class="card" id="perf">
   <div class="cardhead"><span class="cardtitle">Performance</span>
-    <span class="mut">streak: {streak_txt}</span></div>
+    {scope_tabs("perf", perf_scope, params, "perf")}</div>
   <div class="statline"><b>{w}</b> wins &middot; <b>{d}</b> draws &middot; <b>{l}</b> losses
     &middot; {score_pct(w,d,l)} score</div>
   {wdl_bar(w, d, l)}
   <div class="grid2" style="margin-top:10px">{color_block}</div>
   <div style="margin-top:8px">{speed_lines}</div>
-  <div class="mut" style="margin-top:6px;font-size:12px">{vlabel} by color / speed</div>
+  <div class="mut" style="margin-top:6px;font-size:12px">by color / speed
+    &middot; {perf_label} &middot; streak: {streak_txt}</div>
 </div>"""
 
     # ---- Opponents card: by rating strength -------------------------------
@@ -892,12 +1155,15 @@ def page(view="all"):
                     f'{wdl_bar(r["win"], r["draw"], r["loss"])}</div>')
         return out
 
-    total_ops = sum(r["n"] for r in sub["white"].values()) + \
-                sum(r["n"] for r in sub["black"].values())
+    total_ops = sum(r["n"] for r in open_sub["white"].values()) + \
+                sum(r["n"] for r in open_sub["black"].values())
 
-    # Best/worst opening family per color (families with enough games)
+    # Best/worst opening family per color (families with enough games; the
+    # recent slice is small, so it needs a lower bar to say anything at all)
+    min_games = 5 if open_scope == "60" else 10
+
     def callout(side_tally):
-        ranked = [(fam, r) for fam, r in side_tally.items() if r["n"] >= 10]
+        ranked = [(fam, r) for fam, r in side_tally.items() if r["n"] >= min_games]
         if not ranked:
             return ""
         def sc(r):
@@ -911,14 +1177,16 @@ def page(view="all"):
                 f'<span class="mut">{score_pct(worst[1]["win"],worst[1]["draw"],worst[1]["loss"])}</span></div>')
 
     openings = f"""
-<div class="card"><div class="cardhead"><span class="cardtitle">Openings</span>
-  <span class="mut">{vlabel} &middot; {total_ops} games</span></div>
+<div class="card wide" id="openings"><div class="cardhead"><span class="cardtitle">Openings</span>
+  {scope_tabs("open", open_scope, params, "openings")}</div>
 <div class="grid2">
   <div><div class="statline lab" style="margin-bottom:4px">as White</div>
-    {callout(sub["white"])}{opening_col(sub["white"])}</div>
+    {callout(open_sub["white"])}{opening_col(open_sub["white"])}</div>
   <div><div class="statline lab" style="margin-bottom:4px">as Black</div>
-    {callout(sub["black"])}{opening_col(sub["black"])}</div>
-</div></div>"""
+    {callout(open_sub["black"])}{opening_col(open_sub["black"])}</div>
+</div>
+<div class="mut" style="margin-top:6px;font-size:12px">{open_label} &middot; {total_ops} games</div>
+</div>"""
 
     # ---- Recent games table -----------------------------------------------
     def when(ms):
@@ -959,20 +1227,32 @@ def page(view="all"):
     supervisor.status = ""  # show once
     msg_html = f'<div class="msg">{esc(msg)}</div>' if msg else ""
 
-    return f"""<h1><a href="https://lichess.org/@/{esc(u)}">{esc(u)}</a></h1>
+    # The page is split into two swappable regions with the live board between
+    # them: the background refresh replaces #top and #bottom wholesale, and
+    # leaves the embedded board alone unless the game actually changed.
+    return f"""<div id="top">
+<h1><a href="https://lichess.org/@/{esc(u)}">{esc(u)}</a></h1>
 <div class="sub"><span class="{dot}"></span>{state}{now_playing}
 </div>
 {controls(running)}
 {msg_html}
 <div class="tiles">{tiles}</div>
 {chart_svg}
-{view_toggle(view)}
+</div>
+{live_card(game_id if playing else None, u)}
+<div id="bottom">
+{view_toggle(view, params)}
+<div class="cols">
 {activity}
 {perf}
+{version_card(sub, vlabel)}
 {opponents}
 {openings}
+</div>
 {games_table}
-<div class="foot">Auto-refreshes every 60s &middot; data from the public Lichess API</div>"""
+<div class="foot">Auto-refreshes every 60s &middot; data from the public Lichess API
+ &middot; state in {esc(STATE_DIR)}</div>
+</div>"""
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -988,11 +1268,16 @@ class Handler(BaseHTTPRequestHandler):
         vs = q.get("vs", ["all"])[0]
         if vs in ("all", "bot", "human"):
             view = vs
+        scopes = []
+        for key in ("perf", "open"):
+            s = q.get(key, ["all"])[0]
+            scopes.append(s if s in ("60", "all") else "all")
         body = f"""<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="refresh" content="60"><title>kleiniBOT dashboard</title>
+<noscript><meta http-equiv="refresh" content="60"></noscript>
+<title>kleiniBOT dashboard</title>
 <link rel="icon" href="{FAVICON}">
-<style>{CSS}</style></head><body>{page(view)}
+<style>{CSS}</style></head><body>{page(view, *scopes)}
 <script>{CHART_JS}</script></body></html>"""
         data = body.encode()
         self.send_response(200)
@@ -1057,5 +1342,7 @@ def shutdown(*_):
 if __name__ == "__main__":
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)
+    log_version(engine_version())  # catches engines that arrived with a new image
+    reindex_versions()
     supervisor.start()
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
