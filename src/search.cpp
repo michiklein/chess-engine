@@ -68,6 +68,73 @@ namespace {
         }
     }
 
+    // Every square attacked by a pawn of the given colour.
+    Bitboard pawnCover(const Board& board, Color c) {
+        Bitboard bb = board.getPieceBitboard(PieceType::PAWN, c), out = 0;
+        while (bb) {
+            Square s = firstSquare(bb); bb &= bb - 1;
+            out |= MoveGenerator::getPawnAttacks(s, c);
+        }
+        return out;
+    }
+
+    // Per-piece mobility, white-relative. A raw count of attacked squares
+    // prices a knight's two moves the same as a queen's twenty and rewards
+    // piling attacks onto our own pieces; this counts squares a piece could
+    // actually move to and prices them per piece type and per game phase.
+    // Squares covered by an enemy pawn are excluded - a piece cannot usefully
+    // sit where a pawn just takes it. Rooks and queens gain mobility value as
+    // the board opens up, so their endgame weights are higher.
+    void evaluateMobility(const Board& board, int& mg, int& eg) {
+        static const int mobMG[4] = {4, 5, 2, 1};   // knight, bishop, rook, queen
+        static const int mobEG[4] = {4, 5, 4, 2};
+        Bitboard occ = board.getAllPieces();
+
+        for (Color c : {Color::WHITE, Color::BLACK}) {
+            int sign = (c == Color::WHITE) ? 1 : -1;
+            Bitboard own = (c == Color::WHITE) ? board.getWhitePieces()
+                                               : board.getBlackPieces();
+            Bitboard bad = own | pawnCover(board, ~c);
+
+            auto tally = [&](PieceType t, int idx, auto attackFn) {
+                Bitboard bb = board.getPieceBitboard(t, c);
+                while (bb) {
+                    Square s = firstSquare(bb); bb &= bb - 1;
+                    int n = popCount(attackFn(s) & ~bad);
+                    mg += sign * n * mobMG[idx];
+                    eg += sign * n * mobEG[idx];
+                }
+            };
+
+            tally(PieceType::KNIGHT, 0, [&](Square s){ return MoveGenerator::getKnightAttacks(s); });
+            tally(PieceType::BISHOP, 1, [&](Square s){ return MoveGenerator::getBishopAttacks(s, occ); });
+            tally(PieceType::ROOK,   2, [&](Square s){ return MoveGenerator::getRookAttacks(s, occ); });
+            tally(PieceType::QUEEN,  3, [&](Square s){ return MoveGenerator::getQueenAttacks(s, occ); });
+        }
+    }
+
+    // Rooks on files with no friendly pawn in the way. A fully open file (no
+    // pawns of either colour) is worth more than a semi-open one, and both
+    // matter most while there is still a middlegame to invade.
+    void evaluateRookFiles(const Board& board, int& mg, int& eg) {
+        Bitboard wp = board.getPieceBitboard(PieceType::PAWN, Color::WHITE);
+        Bitboard bp = board.getPieceBitboard(PieceType::PAWN, Color::BLACK);
+
+        for (Color c : {Color::WHITE, Color::BLACK}) {
+            int sign = (c == Color::WHITE) ? 1 : -1;
+            Bitboard ownPawns   = (c == Color::WHITE) ? wp : bp;
+            Bitboard enemyPawns = (c == Color::WHITE) ? bp : wp;
+            Bitboard rooks = board.getPieceBitboard(PieceType::ROOK, c);
+            while (rooks) {
+                Square s = firstSquare(rooks); rooks &= rooks - 1;
+                Bitboard f = fileBB(fileOf(s));
+                if (ownPawns & f) continue;
+                if (enemyPawns & f) { mg += sign * 15; eg += sign *  8; }  // semi-open
+                else                { mg += sign * 30; eg += sign * 15; }  // open
+            }
+        }
+    }
+
     // Game phase: 24 = all minor/major pieces on the board (middlegame),
     // 0 = bare kings and pawns (pure endgame).
     int gamePhase(const Board& board) {
@@ -614,11 +681,11 @@ int SearchEngine::evaluate(const Board& board) {
     if (popCount(board.getPieceBitboard(PieceType::BISHOP, Color::WHITE)) >= 2) { mg += 30; eg += 30; }
     if (popCount(board.getPieceBitboard(PieceType::BISHOP, Color::BLACK)) >= 2) { mg -= 30; eg -= 30; }
 
-    // Mobility (attacked squares per side)
-    int mobility = (board.countAttackedSquares(Color::WHITE) -
-                    board.countAttackedSquares(Color::BLACK)) * 3;
-    mg += mobility;
-    eg += mobility;
+    // Mobility, weighted per piece type and game phase
+    evaluateMobility(board, mg, eg);
+
+    // Rooks on open and semi-open files
+    evaluateRookFiles(board, mg, eg);
 
     // Pawn structure
     evaluatePawnStructure(board, mg, eg);
