@@ -69,16 +69,26 @@ history resets every time the container is recreated — which is exactly what
 an image update does — and it is the one thing that cannot be rebuilt from the
 Lichess API afterwards.
 
-### Automatic container updates (Watchtower)
+### Updating the container
 
-For hosts where the ZimaOS-style update button doesn't reliably pick up new
-`:latest` images, run Watchtower once — it watches only the bot container and
-recreates it whenever CI publishes a new image:
+Updates are deliberately manual. CI publishes a new `:latest` image on every
+push to main, but nothing on the host pulls it until you say so — a push is
+not a deploy, and an engine change that looks good locally can still be a
+regression on the board.
+
+To update when you want to:
 
 ```bash
-sudo docker run -d --name watchtower --restart unless-stopped \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  containrrr/watchtower --cleanup --interval 300 kleinibot
+sudo docker pull ghcr.io/michiklein/chess-engine:latest
+sudo docker stop kleinibot && sudo docker rm kleinibot
+# then reinstall/restart the app so it picks up the pulled image
+```
+
+Watchtower was previously used to do this automatically every 5 minutes. If
+it is still running on the host, remove it:
+
+```bash
+sudo docker rm -f watchtower
 ```
 
 ## Test
