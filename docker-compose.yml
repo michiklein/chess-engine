@@ -24,9 +24,14 @@ services:
     restart: unless-stopped
     stop_grace_period: 30s
     # Keep the bot from competing with other services on the host. CPU only
-    # burns during games; this cap trades playing strength for quietness.
-    # 0.2 cores ~= 5% of a 4-core server (check with nproc; 5% = 0.05 x cores).
-    cpus: 0.2
+    # burns while it is the bot's turn; this cap trades playing strength for
+    # quietness, and it is the single biggest lever on strength there is.
+    #
+    # The value is in cores, not percent: target% x nproc / 100. On a 10-core
+    # host 1.0 is ~10%. The search is single-threaded, so it cannot use more
+    # than 1.0 core however high this goes - past that only the lichess-bot
+    # bridge and the status server benefit.
+    cpus: 1.0
     mem_limit: 512m
 
 volumes:

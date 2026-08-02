@@ -23,7 +23,9 @@ services:
       # recreates the container and would otherwise wipe it).
       - /DATA/AppData/kleinibot:/data
     restart: unless-stopped
-    cpus: 0.2                       # ~5% of a 4-core host
+    # In cores, not percent: target% x nproc / 100. ~10% of a 10-core host.
+    # The search is single-threaded, so it cannot use beyond 1.0 core.
+    cpus: 1.0
     mem_limit: 512m
     x-casaos:
       envs:
