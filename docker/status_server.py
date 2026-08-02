@@ -766,10 +766,6 @@ button.primary:hover { filter:brightness(1.08); color:#fff; }
 .up { color:var(--good); font-size:13px; } .down { color:var(--bad); font-size:13px; }
 .card { background:var(--card); border:1px solid var(--line); border-radius:10px;
         padding:13px 15px; margin-bottom:14px; }
-/* Wide screens: short cards pair up, data-dense ones keep the full width */
-.cols { display:grid; grid-template-columns:repeat(auto-fit,minmax(440px,1fr));
-        gap:0 14px; align-items:start; }
-.cols .wide { grid-column:1/-1; }
 .board { width:100%; max-width:640px; height:397px; border:0; display:block;
          border-radius:8px; }
 .cardhead { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; }
@@ -881,7 +877,7 @@ def version_card(sub, label):
                  f'<td>{delta}</td>'
                  f'<td class="mut">{span}</td></tr>')
     return f"""
-<div class="card wide" id="versions">
+<div class="card" id="versions">
   <div class="cardhead"><span class="cardtitle">By engine version</span>
     <span class="mut">{label}</span></div>
 <table><tr><th>Version</th><th>Games</th><th>W-D-L</th><th>Score</th>
@@ -1177,7 +1173,7 @@ def page(view="all", perf_scope="all", open_scope="all"):
                 f'<span class="mut">{score_pct(worst[1]["win"],worst[1]["draw"],worst[1]["loss"])}</span></div>')
 
     openings = f"""
-<div class="card wide" id="openings"><div class="cardhead"><span class="cardtitle">Openings</span>
+<div class="card" id="openings"><div class="cardhead"><span class="cardtitle">Openings</span>
   {scope_tabs("open", open_scope, params, "openings")}</div>
 <div class="grid2">
   <div><div class="statline lab" style="margin-bottom:4px">as White</div>
@@ -1242,13 +1238,11 @@ def page(view="all", perf_scope="all", open_scope="all"):
 {live_card(game_id if playing else None, u)}
 <div id="bottom">
 {view_toggle(view, params)}
-<div class="cols">
 {activity}
 {perf}
 {version_card(sub, vlabel)}
 {opponents}
 {openings}
-</div>
 {games_table}
 <div class="foot">Auto-refreshes every 60s &middot; data from the public Lichess API
  &middot; state in {esc(STATE_DIR)}</div>
