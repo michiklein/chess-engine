@@ -23,9 +23,9 @@ services:
       # recreates the container and would otherwise wipe it).
       - /DATA/AppData/kleinibot:/data
     restart: unless-stopped
-    # In cores, not percent. One full core of the DXP2800's four (Intel N100).
-    # The search is single-threaded, so 1.0 is also the useful ceiling.
-    cpus: 1.0
+    # In cores, not percent: 10% of the DXP2800's four (Intel N100).
+    # The search is single-threaded, so 1.0 would be the useful ceiling.
+    cpus: 0.4
     mem_limit: 512m
     x-casaos:
       envs:

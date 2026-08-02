@@ -28,13 +28,12 @@ services:
     # quietness, and it is the single biggest lever on strength there is.
     #
     # The value is in cores, not percent: target% x nproc / 100. The host is
-    # a UGREEN NASync DXP2800 (Intel N100, 4 cores), so 1.0 is a quarter of
-    # the box and leaves three cores for everything else.
+    # a UGREEN NASync DXP2800 (Intel N100, 4 cores), so 0.4 is 10% of the box
+    # - double the old 0.2, and the most the NAS should give up.
     #
-    # 1.0 is also the ceiling worth setting: the search is single-threaded,
-    # so anything above one core reaches only the lichess-bot bridge and the
-    # status server. Going further would need Lazy SMP in the engine.
-    cpus: 1.0
+    # 1.0 would be the ceiling worth setting if quietness were no object: the
+    # search is single-threaded, so nothing above one core reaches it at all.
+    cpus: 0.4
     mem_limit: 512m
 
 volumes:
