@@ -575,22 +575,6 @@ def build_chart(u):
         grid += (f'<text x="{round(x(i), 1)}" y="{CHART_H - 8}" class="tick" '
                  f'text-anchor="middle">{d.strftime("%b %d")}</text>')
 
-    # Engine-update markers: a dashed vertical tick on each update day, so
-    # the chart doubles as an experiment log ("did that change help?")
-    try:
-        with open(UPDATES_FILE) as f:
-            updates = json.load(f)
-    except Exception:
-        updates = []
-    day_index = {day: i for i, day in enumerate(days)}
-    for upd in updates:
-        uday = datetime.date.fromtimestamp(upd.get("t", 0)).toordinal()
-        if uday in day_index:
-            ux = round(x(day_index[uday]), 1)
-            grid += (f'<g><line x1="{ux}" y1="{PAD_T}" x2="{ux}" y2="{CHART_H - PAD_B}" '
-                     f'class="upd"/><text x="{ux + 3}" y="{PAD_T + 9}" class="updlabel">upd</text>'
-                     f'<title>engine update: {html.escape(str(upd.get("ver", "")))}</title></g>')
-
     lines, dots, labels = "", "", ""
     for s in series:
         pts = [(round(x(i), 1), round(y(v), 1)) for i, v in enumerate(s["vals"]) if v is not None]
@@ -782,8 +766,6 @@ button.primary:hover { filter:brightness(1.08); color:#fff; }
 .sline { fill:none; stroke-width:2; stroke-linejoin:round; }
 .cross { stroke:var(--muted); stroke-width:1; stroke-dasharray:3 3; }
 .hoverdot { stroke:var(--card); stroke-width:2; }
-.upd { stroke:var(--muted); stroke-width:1; stroke-dasharray:2 3; }
-.updlabel { fill:var(--muted); font-size:9px; }
 #tip { position:absolute; display:none; pointer-events:none; background:var(--card);
        border:1px solid var(--line); border-radius:7px; padding:6px 10px; font-size:12px;
        box-shadow:0 3px 10px rgba(0,0,0,.14); min-width:100px; }

@@ -56,7 +56,7 @@ app pulls the CI-built image from `ghcr.io/<owner>/chess-engine`.
 Bot settings (time controls, matchmaking, greetings) live in `docker/config.yml`.
 
 Once running, open `http://<host>:8087` for the dashboard: ratings with
-resettable peaks, a rating-history chart with engine-update markers, the live
+resettable peaks, a rating-history chart, the live
 board while a game is in progress, performance/opponents/openings broken down
 by bots-vs-humans (each over the last 60 games or all time), a **by engine
 version** scoreboard that scores every build against the games it actually
