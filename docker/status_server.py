@@ -661,10 +661,8 @@ function initChart() {
 }
 initChart();
 
-// Background refresh: swap the two content regions in place instead of
-// reloading, so scroll position, the chart hover and - above all - the
-// embedded live board survive. The board only gets replaced when the game
-// id changes; re-inserting that iframe would restart it every minute.
+// Background refresh: swap the content regions in place instead of
+// reloading, so scroll position and the chart hover survive.
 (function () {
   const REGIONS = ['top', 'bottom'];
   let busy = false;
@@ -680,12 +678,6 @@ initChart();
         const next = doc.getElementById(id), cur = document.getElementById(id);
         if (next && cur) cur.innerHTML = next.innerHTML;
       });
-      const next = doc.getElementById('live-slot');
-      const cur = document.getElementById('live-slot');
-      if (next && cur && next.dataset.game !== cur.dataset.game) {
-        cur.dataset.game = next.dataset.game;
-        cur.innerHTML = next.innerHTML;
-      }
       initChart();
     } catch (e) {
       /* offline or lichess hiccup: keep what is on screen */
@@ -750,8 +742,6 @@ button.primary:hover { filter:brightness(1.08); color:#fff; }
 .up { color:var(--good); font-size:13px; } .down { color:var(--bad); font-size:13px; }
 .card { background:var(--card); border:1px solid var(--line); border-radius:10px;
         padding:13px 15px; margin-bottom:14px; }
-.board { width:100%; max-width:640px; height:397px; border:0; display:block;
-         border-radius:8px; }
 .cardhead { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; }
 .cardtitle { color:var(--muted); font-size:11.5px; text-transform:uppercase;
              letter-spacing:.06em; font-weight:600; }
@@ -869,34 +859,6 @@ def version_card(sub, label):
     attributed by when the game started, so a build that only ever met weak
     opposition will still look good - read it next to the score column.</div>
 </div>"""
-
-
-def live_card(game_id, u):
-    """Embedded live board while a game is in progress."""
-    if not game_id:
-        return '<div id="live-slot" data-game=""></div>'
-    esc = html.escape
-    gid = esc(str(game_id))
-    info = ""
-    g = fetch(f"https://lichess.org/game/export/{game_id}?moves=false&clocks=false",
-              {"Accept": "application/json"}, ttl=20)
-    if g:
-        gv = game_view(g, u)
-        badge = ' <span class="botbadge">BOT</span>' if gv["opp_title"] == "BOT" else ""
-        rating = f' <span class="mut">({gv["opp_rating"]})</span>' if gv["opp_rating"] else ""
-        opening = (f' &middot; {esc(gv["opening"])}' if gv["opening"] else "")
-        info = (f'<span class="mut">as {"white" if gv["we_white"] else "black"} vs </span>'
-                f'{esc(gv["opp"])}{badge}{rating}'
-                f'<span class="mut"> &middot; {esc(gv["clock"])}{opening}</span>')
-    return f"""<div id="live-slot" data-game="{gid}">
-<div class="card">
-  <div class="cardhead"><span class="cardtitle">Playing now</span>
-    <span class="mut"><a href="https://lichess.org/{gid}" target="_blank"
-      rel="noopener">open on lichess</a></span></div>
-  <div class="statline" style="margin-bottom:8px">{info}</div>
-  <iframe class="board" src="https://lichess.org/embed/game/{gid}?theme=auto&amp;bg=auto"
-    title="live game" allowtransparency="true" frameborder="0"></iframe>
-</div></div>"""
 
 
 def query(params, **changes):
@@ -1100,13 +1062,30 @@ def page(view="all", perf_scope="all", open_scope="all"):
         extra += (f'<div class="statline"><span class="lab">lowest rated loss</span> '
                   f'&nbsp;<b>{wl_["rating"]}</b> <a href="https://lichess.org/{esc(wl_["id"])}">'
                   f'{esc(wl_["opp"])}</a></div>')
-    elig = [(name, r) for name, r in sub.get("opps", {}).items() if r["n"] >= 5]
-    if elig:
-        def opp_score(kv):
+    # Favourite / least favourite opponent.
+    #
+    # A raw win rate over a small minimum always surfaces whoever you happened
+    # to beat 5-0 and never the opponent you have played fifty times - and
+    # since several perfect records tie, which one appeared came down to dict
+    # order and changed as the store grew. Shrink each rate towards the
+    # overall one instead, so a record has to be both good and substantial,
+    # and break the remaining ties by games played.
+    OPP_MIN_GAMES = 8
+    OPP_PRIOR = 12  # how many games' worth of pull towards the average
+    opps = {name: r for name, r in sub.get("opps", {}).items()
+            if r["n"] >= OPP_MIN_GAMES and name != "?"}
+    if len(opps) >= 2:
+        total_n = sum(r["n"] for r in opps.values())
+        total_s = sum(r["win"] + r["draw"] / 2 for r in opps.values())
+        mean = (total_s / total_n) if total_n else 0.5
+
+        def shrunk(kv):
             r = kv[1]
-            return (r["win"] + r["draw"] / 2) / r["n"]
-        fav = max(elig, key=opp_score)
-        nem = min(elig, key=opp_score)
+            return ((r["win"] + r["draw"] / 2 + OPP_PRIOR * mean)
+                    / (r["n"] + OPP_PRIOR))
+
+        fav = max(opps.items(), key=lambda kv: (shrunk(kv), kv[1]["n"]))
+        nem = min(opps.items(), key=lambda kv: (shrunk(kv), -kv[1]["n"]))
         if fav[0] != nem[0]:
             for lab, (name, r) in (("favorite opponent", fav), ("least favorite", nem)):
                 extra += (f'<div class="statline"><span class="lab">{lab}</span> '
@@ -1205,9 +1184,8 @@ def page(view="all", perf_scope="all", open_scope="all"):
     supervisor.status = ""  # show once
     msg_html = f'<div class="msg">{esc(msg)}</div>' if msg else ""
 
-    # The page is split into two swappable regions with the live board between
-    # them: the background refresh replaces #top and #bottom wholesale, and
-    # leaves the embedded board alone unless the game actually changed.
+    # Two swappable regions: the background refresh replaces #top and #bottom
+    # wholesale rather than reloading the document.
     return f"""<div id="top">
 <h1><a href="https://lichess.org/@/{esc(u)}">{esc(u)}</a></h1>
 <div class="sub"><span class="{dot}"></span>{state}{now_playing}
@@ -1217,7 +1195,6 @@ def page(view="all", perf_scope="all", open_scope="all"):
 <div class="tiles">{tiles}</div>
 {chart_svg}
 </div>
-{live_card(game_id if playing else None, u)}
 <div id="bottom">
 {view_toggle(view, params)}
 {activity}
