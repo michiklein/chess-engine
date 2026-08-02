@@ -27,10 +27,13 @@ services:
     # burns while it is the bot's turn; this cap trades playing strength for
     # quietness, and it is the single biggest lever on strength there is.
     #
-    # The value is in cores, not percent: target% x nproc / 100. On a 10-core
-    # host 1.0 is ~10%. The search is single-threaded, so it cannot use more
-    # than 1.0 core however high this goes - past that only the lichess-bot
-    # bridge and the status server benefit.
+    # The value is in cores, not percent: target% x nproc / 100. The host is
+    # a UGREEN NASync DXP2800 (Intel N100, 4 cores), so 1.0 is a quarter of
+    # the box and leaves three cores for everything else.
+    #
+    # 1.0 is also the ceiling worth setting: the search is single-threaded,
+    # so anything above one core reaches only the lichess-bot bridge and the
+    # status server. Going further would need Lazy SMP in the engine.
     cpus: 1.0
     mem_limit: 512m
 
