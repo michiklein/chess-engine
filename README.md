@@ -97,6 +97,14 @@ before shipping, not just gut feel:
 scripts/play_stockfish.py --stockfish <old-binary> --games 30 --tc 60+0.6
 ```
 
+Read the result with the sample size in mind. At this length the match is a
+disaster detector, not a tuning instrument: 60 games resolve an effect of
+roughly +/-100 Elo, +/-30 Elo needs about 600, and +/-15 Elo about 2,400. A
+control build that was evaluation-identical to its baseline and 11% faster
+measured -17 Elo over 60 games — the true figure was near +15. So a losing
+30-game match is not evidence that an idea was wrong, and a winning one is
+not evidence that it was right unless the margin is large.
+
 ## Project Structure
 
 ```

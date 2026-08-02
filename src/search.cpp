@@ -78,31 +78,125 @@ namespace {
         return out;
     }
 
-    // Per-piece mobility, white-relative. A raw count of attacked squares
-    // prices a knight's two moves the same as a queen's twenty and rewards
-    // piling attacks onto our own pieces; this counts squares a piece could
-    // actually move to and prices them per piece type and per game phase.
-    // Squares covered by an enemy pawn are excluded - a piece cannot usefully
-    // sit where a pawn just takes it. Rooks and queens gain mobility value as
-    // the board opens up, so their endgame weights are higher.
-    void evaluateMobility(const Board& board, int& mg, int& eg) {
+    // Overall scale of the king-danger term, in percent.
+    constexpr int KING_DANGER_SCALE = 100;
+
+    // An unfinished king-safety rework, kept switched off but left in place
+    // because the measurements below are worth not repeating.
+    //   KS_NEW_TERMS - pawn attackers, pawn storm, defenders, open lines
+    //   KS_NEW_RAMP  - attacker count amplifies danger instead of discounting it
+    //
+    // Both on scored 26% over 63 games vs the build without them (~-180 Elo):
+    // the two multiply, so inflated units meet an amplified ramp and a single
+    // position can swing ~960cp, which is more than a queen. Each half alone
+    // came out level with the baseline over 60 games, so neither is bad by
+    // itself - the product is. The way forward is both on with
+    // KING_DANGER_SCALE somewhere near 25-35, not either half in isolation.
+    //
+    // Caveat on all of the above: 60-game matches at 60+0.6 only resolve
+    // effects around +/-100 Elo. A control that was eval-identical to the
+    // baseline and 11% faster measured -17 Elo over the same 60 games, so
+    // the two "level" readings mean "not a disaster", nothing finer.
+    constexpr bool KS_NEW_TERMS = false;
+    constexpr bool KS_NEW_RAMP  = false;
+
+    // Danger grows faster than the count of attackers: one piece pointed at
+    // the king is nothing, two is an annoyance, four with a line open is
+    // usually decisive. Percentages, so entries above 100 amplify.
+    constexpr int RAMP_NEW[8] = {0, 0, 100, 175, 250, 300, 340, 360};
+    // The original weighting, which can only ever discount the raw units.
+    constexpr int RAMP_OLD[8] = {0, 0,  50,  75,  88,  94,  97,  99};
+
+    // An enemy pawn near the king, by how many ranks away it still is. A
+    // storm both opens lines and gains tempo, so it is dangerous well before
+    // it makes contact.
+    constexpr int STORM_BY_RANK_DIST[8] = {0, 70, 45, 25, 12, 5, 0, 0};
+
+    struct KingZone {
+        Square   sq   = 64;
+        Bitboard zone = 0ULL;
+        int attackers = 0;   // distinct enemy pieces bearing on the zone
+        int units     = 0;   // weighted enemy pressure
+        int defenders = 0;   // weighted friendly cover of the same squares
+    };
+
+    // Enemy pawns marching at the king. The pawn shield only looks at our own
+    // pawns, so a storm that has not arrived yet is otherwise invisible - and
+    // by the time it arrives the lines are already open. Two files either
+    // side, because a king on c1 is very much a target for an a-file storm.
+    int pawnStorm(const Board& board, Color us, Square king, int& stormers) {
+        Bitboard pawns = board.getPieceBitboard(PieceType::PAWN, ~us);
+        int kf = fileOf(king), kr = rankOf(king), total = 0;
+        while (pawns) {
+            Square s = firstSquare(pawns); pawns &= pawns - 1;
+            if (std::abs(fileOf(s) - kf) > 2) continue;
+            int d = std::abs(rankOf(s) - kr);
+            total += STORM_BY_RANK_DIST[d];
+            if (d <= 3) stormers++;
+        }
+        return total;
+    }
+
+    // A heavy piece on a line into the king with none of our pawns left on
+    // it. This is what the storm is trying to create.
+    int openLinesToKing(const Board& board, Color us, Square king) {
+        Bitboard ourPawns = board.getPieceBitboard(PieceType::PAWN, us);
+        Bitboard heavy = board.getPieceBitboard(PieceType::ROOK,  ~us)
+                       | board.getPieceBitboard(PieceType::QUEEN, ~us);
+        int kf = fileOf(king), total = 0;
+        for (int f = std::max(0, kf - 2); f <= std::min(7, kf + 2); f++) {
+            Bitboard fb = fileBB(f);
+            if (ourPawns & fb) continue;              // still sheltered
+            if (heavy & fb) total += (f == kf) ? 50 : 35;
+        }
+        return total;
+    }
+
+    // Mobility and king safety in one pass, white-relative.
+    //
+    // Mobility counts squares a piece could actually move to, priced per
+    // piece type and game phase; squares covered by an enemy pawn are
+    // excluded, since a piece cannot usefully sit where a pawn just takes it.
+    //
+    // King safety needs exactly the same per-piece attack sets, and those
+    // sets are the most expensive thing in the whole evaluation, so the two
+    // terms share one loop: every attack bitboard is computed once and then
+    // asked three questions - where can this piece go, does it bear on the
+    // enemy king, does it cover our own.
+    void evaluateMobilityAndKingSafety(const Board& board, int& mg, int& eg) {
         static const int mobMG[4] = {4, 5, 2, 1};   // knight, bishop, rook, queen
         static const int mobEG[4] = {4, 5, 4, 2};
+        static const int atkWeight[4] = {30, 30, 60, 100};  // per attacked zone square
         Bitboard occ = board.getAllPieces();
 
-        for (Color c : {Color::WHITE, Color::BLACK}) {
+        KingZone kz[2];
+        for (int i = 0; i < 2; i++) {
+            kz[i].sq = board.findKing(static_cast<Color>(i));
+            if (kz[i].sq < 64)
+                kz[i].zone = MoveGenerator::getKingAttacks(kz[i].sq) | (1ULL << kz[i].sq);
+        }
+
+        for (int i = 0; i < 2; i++) {
+            Color c = static_cast<Color>(i);
             int sign = (c == Color::WHITE) ? 1 : -1;
             Bitboard own = (c == Color::WHITE) ? board.getWhitePieces()
                                                : board.getBlackPieces();
             Bitboard bad = own | pawnCover(board, ~c);
+            KingZone& them = kz[1 - i];   // the king these pieces attack
+            KingZone& ours = kz[i];       // the king these pieces defend
 
             auto tally = [&](PieceType t, int idx, auto attackFn) {
                 Bitboard bb = board.getPieceBitboard(t, c);
                 while (bb) {
                     Square s = firstSquare(bb); bb &= bb - 1;
-                    int n = popCount(attackFn(s) & ~bad);
+                    Bitboard att = attackFn(s);   // the expensive part, done once
+                    int n = popCount(att & ~bad);
                     mg += sign * n * mobMG[idx];
                     eg += sign * n * mobEG[idx];
+                    int hits = popCount(att & them.zone);
+                    if (hits) { them.attackers++; them.units += atkWeight[idx] * hits; }
+                    if (KS_NEW_TERMS)
+                        ours.defenders += 15 * popCount(att & ours.zone);
                 }
             };
 
@@ -110,6 +204,36 @@ namespace {
             tally(PieceType::BISHOP, 1, [&](Square s){ return MoveGenerator::getBishopAttacks(s, occ); });
             tally(PieceType::ROOK,   2, [&](Square s){ return MoveGenerator::getRookAttacks(s, occ); });
             tally(PieceType::QUEEN,  3, [&](Square s){ return MoveGenerator::getQueenAttacks(s, occ); });
+
+            // Pawns bear on the zone too - a pawn on a3 beside a king on b2
+            // is as dangerous as a piece - but they carry no mobility term.
+            // The whole pawn contribution counts as a single attacker.
+            if (KS_NEW_TERMS) {
+                Bitboard pawns = board.getPieceBitboard(PieceType::PAWN, c);
+                int pawnHits = 0;
+                while (pawns) {
+                    Square s = firstSquare(pawns); pawns &= pawns - 1;
+                    pawnHits += popCount(MoveGenerator::getPawnAttacks(s, c) & them.zone);
+                }
+                if (pawnHits) { them.attackers++; them.units += 20 * pawnHits; }
+            }
+        }
+
+        for (int i = 0; i < 2; i++) {
+            Color c = static_cast<Color>(i);
+            if (kz[i].sq >= 64) continue;
+            int stormers = 0, storm = 0, openLines = 0;
+            if (KS_NEW_TERMS) {
+                storm     = pawnStorm(board, c, kz[i].sq, stormers);
+                openLines = openLinesToKing(board, c, kz[i].sq);
+            }
+            // an attack is local superiority, so defenders come off the total
+            int danger = kz[i].units + storm + openLines - kz[i].defenders;
+            if (danger < 0) danger = 0;
+            int n = kz[i].attackers + (stormers ? 1 : 0);
+            danger = danger * (KS_NEW_RAMP ? RAMP_NEW : RAMP_OLD)[std::min(n, 7)] / 100;
+            danger = danger * KING_DANGER_SCALE / 100;
+            mg += (c == Color::WHITE) ? -danger : danger;
         }
     }
 
@@ -160,43 +284,9 @@ namespace {
         return 10 * centerDist + 4 * (14 - kingDist);
     }
 
-    // Enemy attack pressure on the squares around `color`'s king. Returns a
-    // positive danger number (bigger = more dangerous for `color`). Unlike the
-    // pawn shield, this is active for a king anywhere on the board, including
-    // an uncastled king stuck in the centre.
-    int kingDanger(const Board& board, Color color) {
-        Square king = board.findKing(color);
-        if (king >= 64) return 0;
-        Color enemy = ~color;
-        Bitboard occ  = board.getAllPieces();
-        // King zone: the king square plus its immediate neighbours.
-        Bitboard zone = MoveGenerator::getKingAttacks(king) | (1ULL << king);
-
-        int attackers = 0, units = 0;
-        auto tally = [&](Bitboard pieces, int weight, auto attackFn) {
-            while (pieces) {
-                Square s = firstSquare(pieces); pieces &= pieces - 1;
-                int hits = popCount(attackFn(s) & zone);
-                if (hits) { attackers++; units += weight * hits; }
-            }
-        };
-
-        tally(board.getPieceBitboard(PieceType::KNIGHT, enemy), 30,
-              [&](Square s){ return MoveGenerator::getKnightAttacks(s); });
-        tally(board.getPieceBitboard(PieceType::BISHOP, enemy), 30,
-              [&](Square s){ return MoveGenerator::getBishopAttacks(s, occ); });
-        tally(board.getPieceBitboard(PieceType::ROOK, enemy), 60,
-              [&](Square s){ return MoveGenerator::getRookAttacks(s, occ); });
-        tally(board.getPieceBitboard(PieceType::QUEEN, enemy), 100,
-              [&](Square s){ return MoveGenerator::getQueenAttacks(s, occ); });
-
-        // A lone attacker is rarely dangerous; danger ramps up with more of
-        // them attacking the same king (classic multi-attacker weighting).
-        static const int multiplier[8] = {0, 0, 50, 75, 88, 94, 97, 99};
-        return units * multiplier[std::min(attackers, 7)] / 100;
-    }
-
-    // White-relative king safety score
+    // White-relative pawn shelter score. The attack-based half of king safety
+    // lives in evaluateMobilityAndKingSafety, which shares its attack sets
+    // with mobility.
     int evaluateKingSafety(const Board& board) {
         int score = 0;
 
@@ -227,10 +317,6 @@ namespace {
 
         score += pawnShield(Color::WHITE);
         score -= pawnShield(Color::BLACK);
-        // Attack-based danger: subtract danger to our king, add the danger we
-        // pose to the enemy king (white-relative).
-        score -= kingDanger(board, Color::WHITE);
-        score += kingDanger(board, Color::BLACK);
         return score;
     }
 }
@@ -681,8 +767,8 @@ int SearchEngine::evaluate(const Board& board) {
     if (popCount(board.getPieceBitboard(PieceType::BISHOP, Color::WHITE)) >= 2) { mg += 30; eg += 30; }
     if (popCount(board.getPieceBitboard(PieceType::BISHOP, Color::BLACK)) >= 2) { mg -= 30; eg -= 30; }
 
-    // Mobility, weighted per piece type and game phase
-    evaluateMobility(board, mg, eg);
+    // Mobility and attack-based king danger, sharing one pass over the pieces
+    evaluateMobilityAndKingSafety(board, mg, eg);
 
     // Rooks on open and semi-open files
     evaluateRookFiles(board, mg, eg);
