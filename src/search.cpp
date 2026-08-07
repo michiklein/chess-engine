@@ -539,7 +539,7 @@ int SearchEngine::alphaBeta(Board& board, int depth, int alpha, int beta, bool n
     // Check extension: never drop into quiescence while in check
     if (inCheck) depth++;
 
-    if (depth == 0) return quiescence(board, alpha, beta);
+    if (depth == 0) return quiescence(board, alpha, beta, ply);
 
     // TT probe
     uint64_t hash  = board.getHash();
@@ -692,29 +692,44 @@ int SearchEngine::see(const Board& board, const Move& move) {
     return gain[0];
 }
 
-int SearchEngine::quiescence(Board& board, int alpha, int beta) {
+int SearchEngine::quiescence(Board& board, int alpha, int beta, int ply) {
     nodesSearched++;
 
-    int standPat = evaluate(board);
-    if (board.getSideToMove() == Color::BLACK) standPat = -standPat;
-
-    if (standPat >= beta) return beta;
-    if (standPat > alpha) alpha = standPat;
-
     if (isTimeUp()) return alpha;
+    if (ply >= MAX_PLY - 1)
+        return evaluate(board) * (board.getSideToMove() == Color::WHITE ? 1 : -1);
+
+    // A capture that gives check lands the next node here in check. Standing
+    // pat is not an option then - the side to move has to answer the check -
+    // and the answer is often a king move or a block, neither of which is a
+    // capture. Searching only captures at those nodes hands back a score for
+    // a position the side to move cannot actually hold, which is how forcing
+    // tactics get missed.
+    bool inCheck = board.isInCheck(board.getSideToMove());
+    int standPat = 0;
+
+    if (!inCheck) {
+        standPat = evaluate(board);
+        if (board.getSideToMove() == Color::BLACK) standPat = -standPat;
+        if (standPat >= beta) return beta;
+        if (standPat > alpha) alpha = standPat;
+    }
 
     std::vector<Move> allMoves = MoveGenerator::generatePseudoLegalMoves(board);
-    std::vector<Move> captures;
-    captures.reserve(allMoves.size());
+    std::vector<Move> candidates;
+    candidates.reserve(allMoves.size());
     for (const Move& m : allMoves)
-        if (m.isCapture || m.promotion != PieceType::NONE)
-            captures.push_back(m);
+        if (inCheck || m.isCapture || m.promotion != PieceType::NONE)
+            candidates.push_back(m);   // in check: every evasion, not just captures
 
-    orderMoves(board, captures, Move(), 0);
+    orderMoves(board, candidates, Move(), ply);
 
     Color us = board.getSideToMove();
-    for (const Move& move : captures) {
-        if (move.promotion == PieceType::NONE) {
+    int legalCount = 0;
+    for (const Move& move : candidates) {
+        // Both prunings assume we may decline the move, which is false in
+        // check, so they only apply to ordinary quiescence nodes.
+        if (!inCheck && move.promotion == PieceType::NONE) {
             // Delta pruning: even winning this piece can't lift alpha
             PieceType victim = move.isEnPassant ? PieceType::PAWN
                                                 : board.pieceAt(move.to).type;
@@ -725,11 +740,17 @@ int SearchEngine::quiescence(Board& board, int alpha, int beta) {
 
         board.makeMove(move);
         if (board.isInCheck(us)) { board.unmakeMove(move); continue; }
-        int score = -quiescence(board, -beta, -alpha);
+        legalCount++;
+        int score = -quiescence(board, -beta, -alpha, ply + 1);
         board.unmakeMove(move);
         if (score >= beta) return beta;
         if (score > alpha) alpha = score;
     }
+
+    // Only meaningful in check, where every legal move was generated: no
+    // evasion means mate. Out of check the list was captures only, so an
+    // empty one just means the position is quiet.
+    if (inCheck && legalCount == 0) return -(MATE_SCORE - ply);
 
     return alpha;
 }
@@ -956,7 +977,12 @@ void SearchEngine::orderMoves(const Board& board, std::vector<Move>& moves,
         } else if (isKillerMove(m, ply)) {
             s = 80000;
         } else {
-            s = std::min(getHistoryScore(m), 79000);
+            // History has to stay below the killer band, but clamping it
+            // there flattens every well-established quiet move onto the same
+            // score and throws the ordering away exactly where it matters.
+            // Scale instead: the table is halved at 1e6, so /16 always lands
+            // under the killers while preserving the relative order.
+            s = getHistoryScore(m) / 16;
         }
         scored.emplace_back(s, m);
     }

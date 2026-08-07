@@ -84,7 +84,7 @@ private:
     int historyTable[64][64];
 
     int alphaBeta(Board& board, int depth, int alpha, int beta, bool nullMoveAllowed, int ply);
-    int quiescence(Board& board, int alpha, int beta);
+    int quiescence(Board& board, int alpha, int beta, int ply);
 
     // Static exchange evaluation: expected material outcome of a capture
     // after all profitable recaptures on the target square
