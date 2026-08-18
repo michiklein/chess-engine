@@ -7,6 +7,8 @@ public Lichess API. Supervises the lichess-bot process (start/stop) and can
 hot-swap the engine binary from the latest GitHub release (update button).
 """
 import bisect
+import concurrent.futures
+import copy
 import datetime
 import html
 import json
@@ -36,6 +38,8 @@ PAD_L, PAD_R, PAD_T, PAD_B = 44, 14, 12, 26
 MAX_DAYS = 60
 NGAMES = 60  # recent games pulled for the table and by-color/speed stats
 OPENINGS_REFRESH = 600  # seconds between incremental all-time openings pulls
+REFRESH_INTERVAL = 20  # seconds between warm passes (each URL still honours its ttl)
+BOT_NICE = 10  # the bot/engine yields the CPU to the dashboard when both want it
 
 
 def state_dir():
@@ -92,11 +96,26 @@ class Supervisor:
     def alive(self):
         return self.proc is not None and self.proc.poll() is None
 
+    def _spawn(self):
+        """Run the bot at a lower priority, inherited by the engine it spawns.
+
+        Both share the container's CPU quota, so during a search the engine
+        would otherwise take the whole slice and leave the dashboard's
+        threads waiting on the next scheduling period. `nice` is used rather
+        than os.nice via preexec_fn, which is not safe to call from a process
+        with this many threads running.
+        """
+        try:
+            return subprocess.Popen(["nice", "-n", str(BOT_NICE)] + BOT_CMD, cwd=BOT_DIR)
+        except FileNotFoundError:
+            # No nice on this image: a slower dashboard beats no bot at all.
+            return subprocess.Popen(BOT_CMD, cwd=BOT_DIR)
+
     def start(self):
         with self.lock:
             self.desired = True
             if not self.alive():
-                self.proc = subprocess.Popen(BOT_CMD, cwd=BOT_DIR)
+                self.proc = self._spawn()
 
     def stop(self):
         with self.lock:
@@ -115,7 +134,7 @@ class Supervisor:
             if self.desired and not self.alive():
                 with self.lock:
                     if self.desired and not self.alive():
-                        self.proc = subprocess.Popen(BOT_CMD, cwd=BOT_DIR)
+                        self.proc = self._spawn()
 
 
 supervisor = Supervisor()
@@ -224,16 +243,47 @@ def update_engine():
 
 
 # ---------------------------------------------------------------------------
-# Lichess API (cached)
+# Lichess API (background-refreshed cache)
 # ---------------------------------------------------------------------------
+#
+# Rendering the page used to make this fan-out of calls to lichess.org inline
+# in do_GET, so every tile click paid for four sequential WAN round trips -
+# and did so while sharing a 0.4-core quota with the searching engine. The
+# refresher thread below owns all the network I/O now; the request path only
+# ever reads the dict.
 
 _cache: dict = {}
+_cache_lock = threading.Lock()
 
 
-def fetch(url, headers=None, ttl=60, ndjson=False):
+def api_calls(u):
+    """The endpoints the dashboard renders from: (url, headers, ttl, ndjson).
+
+    Shared by `page` and `warm` so the refresher warms exactly what the
+    request path reads - a URL that drifts out of this dict silently goes
+    back to being fetched inline.
+    """
+    return {
+        "user": (f"https://lichess.org/api/user/{u}", None, 60, False),
+        "status": (f"https://lichess.org/api/users/status?ids={u}&withGameIds=true",
+                   None, 15, False),
+        "games": (f"https://lichess.org/api/games/user/{u}?max={NGAMES}&opening=true",
+                  {"Accept": "application/x-ndjson"}, 60, True),
+        "history": (f"https://lichess.org/api/user/{u}/rating-history", None, 300, False),
+    }
+
+
+def refetch(url, headers=None, ttl=60, ndjson=False, force=False):
+    """Fetch and cache `url` unless a fresh-enough copy is already held.
+
+    Blocks on the network, so only the refresher thread (and the handful of
+    request paths that genuinely need a live read, like the peak reset)
+    should call it.
+    """
     now = time.time()
-    hit = _cache.get(url)
-    if hit and hit[0] > now:
+    with _cache_lock:
+        hit = _cache.get(url)
+    if hit and hit[0] > now and not force:
         return hit[1]
     req = urllib.request.Request(url, headers={"User-Agent": UA, **(headers or {})})
     try:
@@ -241,10 +291,25 @@ def fetch(url, headers=None, ttl=60, ndjson=False):
             raw = r.read().decode()
         data = ([json.loads(l) for l in raw.splitlines() if l.strip()]
                 if ndjson else json.loads(raw))
-        _cache[url] = (now + ttl, data)
+        with _cache_lock:
+            _cache[url] = (now + ttl, data)
         return data
     except Exception:
         return hit[1] if hit else None  # serve stale data over nothing
+
+
+def fetch(url, headers=None, ttl=60, ndjson=False):
+    """The cached copy, however old, without touching the network.
+
+    Freshness is the refresher's job. A miss only happens for a URL it has
+    not warmed yet - on the first page load after start-up - and there a live
+    fetch beats rendering an empty dashboard.
+    """
+    with _cache_lock:
+        hit = _cache.get(url)
+    if hit:
+        return hit[1]
+    return refetch(url, headers, ttl, ndjson)
 
 
 _username = None
@@ -301,7 +366,9 @@ def reset_peaks():
     u = username()
     if not u:
         return
-    user = fetch(f"https://lichess.org/api/user/{u}", ttl=0) or {}
+    # One of the few reads that must be live: the button's whole job is to
+    # pin the peaks to the rating as it stands right now.
+    user = refetch(f"https://lichess.org/api/user/{u}", ttl=60, force=True) or {}
     perfs = user.get("perfs", {})
     with _peaks_lock:
         save_peaks({k: p.get("rating") for k, p in perfs.items()
@@ -316,6 +383,7 @@ def opening_family(name):
 # re-download the whole game history on each page load.
 _openings_last = 0.0
 _openings_lock = threading.Lock()
+_openings_cache = None  # last published store; the request path reads this
 
 
 STORE_VERSION = 6  # bump when the accumulated schema changes -> forces a rebuild
@@ -389,62 +457,80 @@ def _save_openings(store):
         pass
 
 
-def openings_store(u):
-    """Return the all-time by-color openings tally, refreshing incrementally."""
-    global _openings_last
+def openings_store(u, refresh=False):
+    """The all-time by-color openings tally.
+
+    The request path (refresh=False) gets the published store straight from
+    memory - no disk, no network. Only the refresher passes refresh=True and
+    takes the incremental pull, which streams every game since the last
+    cursor and is far too slow to sit in front of a page render.
+    """
+    global _openings_last, _openings_cache
     with _openings_lock:
-        store = _load_openings()
+        if _openings_cache is None:
+            _openings_cache = _load_openings()
+        store = _openings_cache
+        if not refresh:
+            return store
         if time.time() - _openings_last < OPENINGS_REFRESH and store["since"]:
             return store
         _openings_last = time.time()
-        reindex_versions()  # attribute each game to the engine that played it
-        since = store.get("since", 0)
-        url = (f"https://lichess.org/api/games/user/{u}"
-               f"?opening=true&sort=dateAsc")
-        if since:
-            url += f"&since={since}"
-        try:
-            req = urllib.request.Request(
-                url, headers={"User-Agent": UA, "Accept": "application/x-ndjson"})
-            with urllib.request.urlopen(req, timeout=30) as r:
-                for raw in r:
-                    raw = raw.decode().strip()
-                    if not raw:
-                        continue
-                    g = json.loads(raw)
-                    gv = game_view(g, u)
-                    side = "white" if gv["we_white"] else "black"
-                    fam = opening_family(gv["opening"])
-                    bucket = rating_bucket(gv["opp_rating"])
-                    who = "bot" if gv["opp_title"] == "BOT" else "human"
-                    started = g.get("createdAt", 0) / 1000
-                    dayord = str(datetime.date.fromtimestamp(started).toordinal())
-                    ver = version_at(started)
-                    for grp in ("all", who):  # accumulate into combined + its group
-                        sub = store[grp]
-                        _bump(sub[side], fam, gv["res"])
-                        _bump(sub["speed"], gv["speed"], gv["res"])
-                        _bump(sub["opps"], gv["opp"], gv["res"])
-                        sub["days"][dayord] = sub["days"].get(dayord, 0) + 1
-                        if ver:
-                            _bump_version(sub["vers"], ver, gv, started)
-                        if bucket:
-                            _bump(sub["buckets"], bucket, gv["res"])
-                        r = gv["opp_rating"]
-                        if r:
-                            if gv["res"] == "win" and \
-                                    (not sub["best_win"] or r > sub["best_win"]["rating"]):
-                                sub["best_win"] = {"rating": r, "opp": gv["opp"], "id": gv["id"]}
-                            if gv["res"] == "loss" and \
-                                    (not sub["worst_loss"] or r < sub["worst_loss"]["rating"]):
-                                sub["worst_loss"] = {"rating": r, "opp": gv["opp"], "id": gv["id"]}
-                    created = g.get("createdAt", 0)
-                    if created + 1 > store["since"]:
-                        store["since"] = created + 1
-            _save_openings(store)
-        except Exception:
-            pass  # keep whatever we already have
-        return store
+
+    # Accumulate into a copy with the lock dropped: the stream can run for
+    # tens of seconds, and readers must neither block on it nor see a tally
+    # mutating underneath them mid-render.
+    store = copy.deepcopy(store)
+    reindex_versions()  # attribute each game to the engine that played it
+    since = store.get("since", 0)
+    url = (f"https://lichess.org/api/games/user/{u}"
+           f"?opening=true&sort=dateAsc")
+    if since:
+        url += f"&since={since}"
+    try:
+        req = urllib.request.Request(
+            url, headers={"User-Agent": UA, "Accept": "application/x-ndjson"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            for raw in r:
+                raw = raw.decode().strip()
+                if not raw:
+                    continue
+                g = json.loads(raw)
+                gv = game_view(g, u)
+                side = "white" if gv["we_white"] else "black"
+                fam = opening_family(gv["opening"])
+                bucket = rating_bucket(gv["opp_rating"])
+                who = "bot" if gv["opp_title"] == "BOT" else "human"
+                started = g.get("createdAt", 0) / 1000
+                dayord = str(datetime.date.fromtimestamp(started).toordinal())
+                ver = version_at(started)
+                for grp in ("all", who):  # accumulate into combined + its group
+                    sub = store[grp]
+                    _bump(sub[side], fam, gv["res"])
+                    _bump(sub["speed"], gv["speed"], gv["res"])
+                    _bump(sub["opps"], gv["opp"], gv["res"])
+                    sub["days"][dayord] = sub["days"].get(dayord, 0) + 1
+                    if ver:
+                        _bump_version(sub["vers"], ver, gv, started)
+                    if bucket:
+                        _bump(sub["buckets"], bucket, gv["res"])
+                    r = gv["opp_rating"]
+                    if r:
+                        if gv["res"] == "win" and \
+                                (not sub["best_win"] or r > sub["best_win"]["rating"]):
+                            sub["best_win"] = {"rating": r, "opp": gv["opp"], "id": gv["id"]}
+                        if gv["res"] == "loss" and \
+                                (not sub["worst_loss"] or r < sub["worst_loss"]["rating"]):
+                            sub["worst_loss"] = {"rating": r, "opp": gv["opp"], "id": gv["id"]}
+                created = g.get("createdAt", 0)
+                if created + 1 > store["since"]:
+                    store["since"] = created + 1
+    except Exception:
+        pass  # a partial pull is still consistent: the cursor only advances
+              # past games already tallied, so the next pass resumes there
+    with _openings_lock:
+        _openings_cache = store
+    _save_openings(store)
+    return store
 
 
 def tally_recent(gvs):
@@ -502,8 +588,22 @@ def game_view(g, u):
 SERIES_SLOTS = [("Bullet", "--s1"), ("Blitz", "--s2"), ("Rapid", "--s3")]
 
 
+_chart_svg = None   # last rendered chart; None until the first render
+_chart_stamp = None  # cache stamp of the history the chart was drawn from
+
+
+def chart(u):
+    """The rating chart as of the last refresh, rebuilding only if it has
+    never been rendered (the SVG is a few thousand points of string work, and
+    it does not change between refreshes)."""
+    global _chart_svg
+    if _chart_svg is None:
+        _chart_svg = build_chart(u)
+    return _chart_svg
+
+
 def build_chart(u):
-    hist = fetch(f"https://lichess.org/api/user/{u}/rating-history", ttl=300)
+    hist = fetch(*api_calls(u)["history"])
     if not hist:
         return ""
     by_name = {h.get("name"): h.get("points", []) for h in hist}
@@ -545,7 +645,13 @@ def build_chart(u):
 
     values_all = []
     for s in series:
-        vals, cur = [], None
+        # Seed with the last rating from before the window: a quiet stretch
+        # should draw at the level the bot actually sits at, not leave the
+        # line blank until the next game - and when every point predates the
+        # window (idle longer than MAX_DAYS) there would otherwise be nothing
+        # to scale the axis against at all.
+        prior = [day for day in s["pts"] if day < days[0]]
+        vals, cur = [], s["pts"][max(prior)] if prior else None
         for day in days:
             if day in s["pts"]:
                 cur = s["pts"][day]
@@ -553,6 +659,8 @@ def build_chart(u):
         s["vals"] = vals
         values_all += [v for v in vals if v is not None]
 
+    if not values_all:
+        return ""
     lo, hi = min(values_all), max(values_all)
     span = max(hi - lo, 50)
     lo, hi = lo - span * 0.1, hi + span * 0.1
@@ -901,11 +1009,11 @@ def page(view="all", perf_scope="all", open_scope="all"):
                 "(no username yet - is LICHESS_BOT_TOKEN set?)</p>" + controls(running))
 
     esc = html.escape
-    user = fetch(f"https://lichess.org/api/user/{u}", ttl=60) or {}
-    status = fetch(f"https://lichess.org/api/users/status?ids={u}&withGameIds=true", ttl=15)
+    calls = api_calls(u)
+    user = fetch(*calls["user"]) or {}
+    status = fetch(*calls["status"])
     st = status[0] if status else {}
-    raw_games = fetch(f"https://lichess.org/api/games/user/{u}?max={NGAMES}&opening=true",
-                      {"Accept": "application/x-ndjson"}, ttl=60, ndjson=True) or []
+    raw_games = fetch(*calls["games"]) or []
     games = [game_view(g, u) for g in raw_games]
 
     playing = st.get("playing")            # boolean: is a game in progress
@@ -940,7 +1048,7 @@ def page(view="all", perf_scope="all", open_scope="all"):
               f'<div class="v">{c.get("all", 0)}</div>'
               f'<small class="mut">{c.get("rated", 0)} rated</small></div>')
 
-    chart_svg = build_chart(u)
+    chart_svg = chart(u)
 
     # All-time tallies, accumulated once; `sub` is the selected slice
     store = openings_store(u)
@@ -1208,6 +1316,46 @@ def page(view="all", perf_scope="all", open_scope="all"):
 </div>"""
 
 
+# ---------------------------------------------------------------------------
+# Background refresh
+# ---------------------------------------------------------------------------
+
+def warm():
+    """Pull everything the dashboard renders from into the caches.
+
+    The four API reads go out together rather than one after another: they are
+    independent, and on this box the wall time is nearly all round trip.
+    """
+    global _chart_svg, _chart_stamp
+    u = username()
+    if not u:
+        return  # no token, or lichess is down - retry on the next pass
+    calls = api_calls(u)
+    specs = list(calls.values())
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(specs)) as pool:
+        list(pool.map(lambda s: refetch(*s), specs))
+
+    # Redraw only when the rating history actually came back down the wire
+    # (its ttl is minutes, this loop runs in seconds) - the cache stamp only
+    # moves on a real fetch.
+    with _cache_lock:
+        stamp = (_cache.get(calls["history"][0]) or (None,))[0]
+    if stamp != _chart_stamp:
+        _chart_svg = build_chart(u)
+        _chart_stamp = stamp
+
+    openings_store(u, refresh=True)  # no-ops until OPENINGS_REFRESH has passed
+
+
+def refresher():
+    while True:
+        try:
+            warm()
+        except Exception:
+            pass  # a failed pass must never kill the loop; the page just ages
+        time.sleep(REFRESH_INTERVAL)
+
+
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
@@ -1298,4 +1446,8 @@ if __name__ == "__main__":
     log_version(engine_version())  # catches engines that arrived with a new image
     reindex_versions()
     supervisor.start()
+    # Started before the server binds so the caches are filling while the
+    # port comes up; the first request lands on warm data instead of paying
+    # for the whole fan-out itself.
+    threading.Thread(target=refresher, daemon=True).start()
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
