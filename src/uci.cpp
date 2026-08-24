@@ -201,10 +201,14 @@ void UCIEngine::handleGo(const std::vector<std::string>& tokens) {
     search.setSoftTimeLimit(softMs);
     search.setNodeLimit(nodes);
     search.setStopFlag(&stopRequested);
-    // The book answers instantly without producing any evaluation, so use it
-    // only in real timed games (clocks present). Analysis requests -
-    // infinite, fixed depth/nodes/movetime - always search.
-    search.setBookEnabled(wtime > 0 || btime > 0);
+    // The book answers instantly without producing any evaluation, so skip it
+    // for analysis requests - "infinite" and fixed depth/nodes - which want an
+    // eval for the position itself. Playing requests keep the book, and that
+    // includes "movetime": lichess-bot searches the first move of every game
+    // with a bare "go movetime 10000" (the Lichess clock only starts after it),
+    // so gating on clocks alone took the book out of exactly the two plies that
+    // choose the opening, and every game started with the same searched move.
+    search.setBookEnabled(!infinite && depth == 0 && nodes == 0);
 
     if (depth > MAX_PRACTICAL_DEPTH && timeLimitMs == 0 && nodes == 0 && !infinite) {
         std::cout << "info string requested depth " << depth
